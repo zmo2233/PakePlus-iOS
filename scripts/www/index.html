@@ -1,0 +1,4549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E11">
+<title>卡路里交易所 · CAL·EX</title>
+<!-- 装到手机桌面（PWA）：装成 App 之后浏览器不会把存储当"临时站点数据"清掉，
+     这比普通网页标签页可靠得多，也是"数据存在本地"能成立的前提。 -->
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="卡路里交易所">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="description" content="把减脂当成一场做空：吃进去是买入，消耗是卖出，净缺口就是你的盈亏。">
+<style>
+  :root{
+    --bg:#0B0E11; --surface:#151A21; --surface2:#1C232B; --border:#252D36;
+    --text:#E8EDF2; --muted:#8B949E; --dim:#5C6672;
+    --up:#3DD68C; --down:#E5484D; --gold:#D29922; --danger:#E5484D;
+    --radius:14px;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:#05070A;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--text); display:flex; justify-content:center; min-height:100vh;
+  }
+  .app{
+    width:100%; max-width:420px; height:100vh; height:100dvh; background:var(--bg);
+    display:flex; flex-direction:column; position:relative; overflow:hidden;
+  }
+  .app::after{
+    content:''; position:absolute; inset:0; pointer-events:none;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04); border-radius:0;
+  }
+  header{
+    padding:14px 18px 10px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--border); flex-shrink:0;
+  }
+  .brand{display:flex; align-items:baseline; gap:8px;}
+  .brand h1{font-size:15px; font-weight:600; margin:0; letter-spacing:0.5px;}
+  .brand span{font-size:10px; color:var(--dim); letter-spacing:1.5px; font-family:var(--mono);}
+  .streak{
+    display:flex; align-items:center; gap:5px; font-size:11px; color:var(--gold);
+    background:rgba(210,153,34,0.1); border:1px solid rgba(210,153,34,0.25);
+    padding:4px 9px; border-radius:20px;
+  }
+  main{flex:1; overflow-y:auto; overflow-x:hidden; padding:14px 18px 20px; -webkit-overflow-scrolling:touch;}
+  main::-webkit-scrollbar{width:0;}
+  nav{
+    flex-shrink:0; display:flex; border-top:1px solid var(--border);
+    background:var(--surface); padding-bottom:env(safe-area-inset-bottom);
+  }
+  nav button{
+    flex:1; background:none; border:none; color:var(--dim); font-size:10px;
+    padding:9px 0 11px; font-family:inherit; cursor:pointer; display:flex;
+    flex-direction:column; align-items:center; gap:3px; transition:color .15s; letter-spacing:.2px;
+  }
+  nav button.on{color:var(--text);}
+  nav button .ic{width:18px; height:18px; stroke:currentColor; stroke-width:1.6; fill:none;}
+
+  /* ===== 交易日选择条：每个页面顶部都有，切了日期所有页面一起走 ===== */
+  .datebar{display:flex; align-items:center; gap:7px; margin-bottom:11px;}
+  .datebar .db-l{font-size:10px; letter-spacing:.4px; color:var(--dim);}
+  .datebar input[type=date]{
+    font-family:inherit; font-size:12px; color:var(--text); font-variant-numeric:tabular-nums;
+    background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+    padding:5px 8px; color-scheme:dark; outline:none;
+  }
+  .datebar input[type=date]::-webkit-calendar-picker-indicator{opacity:.5; cursor:pointer;}
+  .datebar.off input[type=date]{border-color:rgba(210,153,34,.5); color:var(--gold);}
+  .datebar .db-today{
+    margin-left:auto; font-size:10.5px; font-family:inherit; cursor:pointer;
+    color:var(--gold); background:none; border:none; padding:4px 2px;
+  }
+  .datebar .db-flag{font-size:9.5px; color:var(--dim); margin-left:auto;}
+
+  .quote-label{font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px;}
+  .quote-main{display:flex; align-items:flex-end; gap:14px; margin-top:4px;}
+  .quote-price{font-size:40px; font-weight:600; line-height:1; letter-spacing:-1px; font-variant-numeric:tabular-nums;}
+  .quote-price small{font-size:14px; font-weight:400; color:var(--muted); letter-spacing:0; margin-left:4px;}
+  .quote-chg{font-size:15px; font-variant-numeric:tabular-nums; padding-bottom:3px;}
+  .quote-sub{display:flex; gap:14px; margin-top:8px; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums;}
+  .up{color:var(--up);} .down{color:var(--down);} .flat{color:var(--muted);}
+
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; margin-top:12px;}
+  .card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+  .card-title{font-size:13px; font-weight:500;}
+  .card-note{font-size:11px; color:var(--dim);}
+
+  .bar{height:6px; background:var(--surface2); border-radius:3px; overflow:hidden; margin-top:12px;}
+  .bar > i{display:block; height:100%; border-radius:3px; transition:width .4s ease;}
+  .bar-legend{display:flex; justify-content:space-between; font-size:10px; color:var(--dim); margin-top:6px;}
+
+  .pos-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); border-radius:10px; overflow:hidden;}
+  .pos-cell{background:var(--surface); padding:10px 12px;}
+  .pos-cell b{display:block; font-size:17px; font-weight:500; font-variant-numeric:tabular-nums; margin-top:2px;}
+  .pos-cell span{font-size:10px; color:var(--muted);}
+
+  /* ===== 首页第一屏：今日大盘 · 挤压方块 =====
+     整张卡就是一块画布：上红（摄入）下绿（消耗），两区高度比 = 两边热量比，
+     块与块之间只留 2.2px 缝。占比越大颜色越沉，视觉上就是"重的把轻的挤扁"。 */
+  .bd-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:15px 13px 12px; position:relative; overflow:hidden;
+  }
+  .bd-card::before{
+    content:''; position:absolute; top:-60px; right:-40px; width:180px; height:180px;
+    background:radial-gradient(circle, rgba(210,153,34,.09), transparent 68%); pointer-events:none;
+  }
+  .bd-top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; position:relative;}
+  .bd-sym{font-size:9.5px; letter-spacing:1.7px; color:var(--dim); font-family:var(--mono);}
+  .bd-date{font-size:13.5px; color:var(--text); margin-top:4px; font-variant-numeric:tabular-nums; letter-spacing:.2px;}
+  .bd-sk{font-size:12px; color:var(--gold); font-weight:500; text-align:right;}
+  .bd-sk2{font-size:9.5px; color:var(--dim); margin-top:4px; text-align:right;}
+
+  .bd-gap{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    margin:15px 0 0; padding-bottom:13px; border-bottom:1px solid #1A212A;
+  }
+  .bd-gap-l > span{font-size:10px; color:var(--dim); letter-spacing:.3px;}
+  .bd-gap-n{
+    font-size:31px; font-weight:600; line-height:1; letter-spacing:-1.2px; margin-top:7px;
+    font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:1px;
+  }
+  .bd-gap-n i{font-size:11px; font-weight:400; font-style:normal; color:var(--muted); margin-left:5px; letter-spacing:0;}
+  .bd-gap-r{text-align:right;}
+  .bd-gap-r > span{font-size:10px; color:var(--dim); display:block;}
+  .bd-gap-r b{font-size:14.5px; font-weight:500; display:block; margin-top:7px; font-variant-numeric:tabular-nums;}
+  .bd-pill{
+    display:inline-block; margin-top:8px; font-size:10px; padding:3px 9px; border-radius:20px;
+    font-variant-numeric:tabular-nums; letter-spacing:.2px;
+  }
+  .bd-pill.ok{background:rgba(229,72,77,.14); color:var(--down);}
+  .bd-pill.bad{background:rgba(61,214,140,.14); color:var(--up);}
+
+  .bd-tabs{display:flex; gap:2px; background:var(--surface2); border-radius:9px; padding:3px; margin:13px 0 11px;}
+  .bd-tab{
+    flex:1; border:none; background:none; font-family:inherit; font-size:12px; color:var(--muted);
+    padding:7px 0; border-radius:7px; cursor:pointer; transition:background .15s, color .15s;
+  }
+  .bd-tab.on{background:#E9EEF4; color:#0B0E11; font-weight:600;}
+
+  .bd-canvas{border-radius:11px; overflow:hidden; background:#080B0E; line-height:0;}
+  .bd-canvas svg{display:block; width:100%;}
+  .bd-legend{display:flex; align-items:center; gap:5px; margin-top:10px; font-size:9.5px; color:var(--dim);}
+  .bd-legend i{width:7px; height:7px; border-radius:2px; display:inline-block; margin-right:4px; vertical-align:middle;}
+  .bd-legend .sp{margin-left:auto; font-size:9px; color:#3E4750;}
+  .bd-jump{
+    display:inline-flex; align-items:center; font-family:inherit; font-size:9.5px;
+    background:#141A21; border:1px solid #252E38; color:#A8B3BF; border-radius:7px;
+    padding:4px 8px; cursor:pointer; margin-right:4px;
+  }
+  .bd-jump:active{transform:scale(.96);}
+  .bd-jump i{width:7px; height:7px; border-radius:2px; display:inline-block; margin-right:5px;}
+  .bd-jump.buy{color:#6FDCA8; border-color:rgba(61,214,140,.34);}
+  .bd-jump.sell{color:#F29296; border-color:rgba(229,72,77,.34);}
+  .bd-tip{font-size:9.5px; color:#4C5560; margin-top:7px; line-height:1.5;}
+  .bd-blk{cursor:pointer;}
+  .bd-blk:active rect{opacity:.86;}
+  .jumpboard{color:var(--gold); font-weight:500; cursor:pointer;}
+  /* 位置落定之后再淡入文字，避免跟着色块一起飞 */
+  .bd-anim text{animation:bdfade .34s .2s both;}
+  @keyframes bdfade{from{opacity:0;} to{opacity:1;}}
+  /* 刚记的那一笔：先亮一下再回到常态，眼睛能跟上是哪块变了 */
+  .bd-flash rect{animation:bdflash .7s ease-out;}
+  @keyframes bdflash{0%{filter:brightness(1.7);} 100%{filter:brightness(1);}}
+
+  /* ===== 卖出页：运动录入表单 ===== */
+  .ex-chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
+  .ex-grid{display:grid; grid-template-columns:1fr 1fr; gap:9px;}
+  .ex-f{display:flex; flex-direction:column; gap:4px; min-width:0;}
+  .ex-f > span{font-size:9.5px; color:var(--dim); letter-spacing:0.3px;}
+  .ex-f input{
+    width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); font-size:12.5px; padding:8px 9px; font-family:inherit; outline:none;
+    font-variant-numeric:tabular-nums;
+  }
+  .ex-f input:focus{border-color:rgba(210,153,34,.5);}
+  .ex-quick{display:flex; gap:6px; margin-top:9px;}
+  .ex-quick .chip{flex:1; padding:7px 0; text-align:center; font-size:11px;}
+  .ex-acts{display:flex; gap:8px; margin-top:11px;}
+  /* 记入卖盘：跟随「卖出 = 红」，与大盘卖盘同色 */
+  .ex-btn{
+    flex:1; padding:10px; border-radius:9px; font-size:12.5px; font-family:inherit; cursor:pointer;
+    border:1px solid rgba(229,72,77,.34); background:rgba(229,72,77,.13); color:var(--down);
+  }
+  .ex-btn.ghost{flex:0 0 auto; padding:10px 15px; border-color:var(--border); background:var(--surface2); color:var(--muted);}
+  .ex-hint{font-size:10px; color:var(--dim); line-height:1.65; margin-top:9px;}
+  .ex-hint b{color:var(--muted); font-weight:500;}
+  .log-row.tap{cursor:pointer;}
+  .log-row.tap:active{background:rgba(255,255,255,.03);}
+  .log-sub{font-size:9.5px; color:var(--dim); margin-left:6px; font-variant-numeric:tabular-nums;}
+  .log-editing{background:rgba(210,153,34,.07);}
+
+  .shop{display:flex; gap:12px; padding:13px 0; border-bottom:1px solid var(--border);}
+  .shop:last-child{border-bottom:none; padding-bottom:2px;}
+  .shop-body{flex:1; min-width:0;}
+  .shop-top{display:flex; align-items:baseline; gap:6px;}
+  .shop-name{font-size:13px; font-weight:500;}
+  .shop-dist{font-size:10px; color:var(--dim);}
+  .shop-dish{font-size:11px; color:var(--muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .shop-meta{font-size:10px; color:var(--dim); margin-top:4px; font-variant-numeric:tabular-nums;}
+  .shop-side{text-align:right; flex-shrink:0; width:82px;}
+  .eff{font-size:18px; font-weight:600; font-variant-numeric:tabular-nums; line-height:1;}
+  .eff-unit{font-size:9px; color:var(--dim); margin-top:2px;}
+  .btn-short{
+    margin-top:7px; width:100%; padding:5px 0; font-size:11px; font-family:inherit;
+    background:rgba(229,72,77,0.12); color:var(--down); border:1px solid rgba(229,72,77,0.3);
+    border-radius:7px; cursor:pointer;
+  }
+  .btn-short:active{background:rgba(229,72,77,0.22);}
+  .btn-long{
+    margin-top:7px; width:100%; padding:5px 0; font-size:11px; font-family:inherit;
+    background:rgba(61,214,140,0.1); color:var(--up); border:1px solid rgba(61,214,140,0.28);
+    border-radius:7px; cursor:pointer;
+  }
+  .chips{display:flex; gap:8px; margin-bottom:6px; overflow-x:auto; padding-bottom:2px;}
+  .chips::-webkit-scrollbar{display:none;}
+  .chip{
+    flex-shrink:0; padding:5px 12px; font-size:11px; border-radius:20px; cursor:pointer;
+    background:var(--surface); border:1px solid var(--border); color:var(--muted); font-family:inherit;
+  }
+  .chip.on{background:var(--text); color:var(--bg); border-color:var(--text);}
+
+  .log-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--border);}
+  .log-row:last-child{border-bottom:none;}
+  .log-dot{width:6px; height:6px; border-radius:50%; flex-shrink:0;}
+  .log-name{flex:1; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .log-kcal{font-size:12px; font-variant-numeric:tabular-nums; width:52px; text-align:right;}
+  .log-del{background:none; border:none; color:var(--dim); font-size:14px; cursor:pointer; padding:0 0 0 6px; font-family:inherit;}
+  .empty{font-size:12px; color:var(--dim); text-align:center; padding:22px 0;}
+
+  .totals{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;}
+  .total-box{background:var(--surface2); border-radius:10px; padding:11px 13px;}
+  .total-box span{font-size:10px; color:var(--muted);}
+  .total-box b{display:block; font-size:22px; font-weight:500; font-variant-numeric:tabular-nums; margin-top:3px;}
+
+  .foot-note{font-size:10px; color:var(--dim); line-height:1.7; margin-top:14px;}
+  .toast{
+    position:absolute; left:50%; bottom:78px; transform:translateX(-50%) translateY(10px);
+    background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    font-size:12px; padding:9px 16px; border-radius:20px; opacity:0; pointer-events:none;
+    transition:opacity .25s, transform .25s; white-space:nowrap; z-index:20;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  .mask{position:absolute; inset:0; background:rgba(0,0,0,.62); opacity:0; pointer-events:none; transition:opacity .2s; z-index:30;}
+  .mask.on{opacity:1; pointer-events:auto;}
+  .sheet{
+    position:absolute; left:0; right:0; bottom:0; z-index:31; background:var(--surface);
+    border-top:1px solid var(--border); border-radius:18px 18px 0 0;
+    padding:10px 18px calc(18px + env(safe-area-inset-bottom));
+    transform:translateY(103%); transition:transform .26s cubic-bezier(.32,.72,0,1);
+    max-height:90%; overflow-y:auto;
+  }
+  .sheet.on{transform:translateY(0);}
+  .sheet::-webkit-scrollbar{width:0;}
+  .sheet-handle{width:36px; height:4px; border-radius:2px; background:var(--border); margin:0 auto 13px;}
+  .sheet h3{font-size:14px; font-weight:600; margin:0 0 15px; display:flex; justify-content:space-between; align-items:baseline;}
+  .sheet h3 em{font-style:normal; font-size:10px; color:var(--dim); font-weight:400;}
+  .field{margin-bottom:11px;}
+  .field label{display:block; font-size:10px; color:var(--muted); margin-bottom:5px;}
+  .field input,.field select{
+    width:100%; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    font-size:14px; font-family:inherit; padding:9px 11px; border-radius:9px; outline:none;
+    font-variant-numeric:tabular-nums;
+  }
+  .field input::placeholder{color:#4C5560;}
+  .field input:focus,.field select:focus{border-color:#3A4553;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .sug{display:flex; flex-wrap:wrap; gap:6px; margin:-3px 0 11px;}
+  .sug button{
+    background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+    font-size:11px; font-family:inherit; padding:5px 10px; border-radius:7px; cursor:pointer;
+  }
+  .sug button:active{background:#232C36;}
+  .sug button.net{color:var(--gold); border-color:rgba(210,153,34,.3);}
+  .preview{
+    background:rgba(61,214,140,.06); border:1px solid rgba(61,214,140,.18); border-radius:9px;
+    padding:9px 12px; margin-bottom:11px; display:flex; align-items:baseline; justify-content:space-between;
+  }
+  .preview b{font-size:20px; font-weight:600; font-variant-numeric:tabular-nums;}
+  .preview span{font-size:10px; color:var(--muted);}
+  .btns{display:flex; gap:10px; margin-top:14px;}
+  .btns button{
+    flex:1; padding:12px 0; border-radius:10px; font-family:inherit; font-size:13px;
+    cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text);
+  }
+  .btns .primary{background:var(--text); color:var(--bg); border-color:var(--text); font-weight:500;}
+  .btns .danger{flex:0 0 84px; color:var(--danger); border-color:rgba(229,72,77,.3); background:rgba(229,72,77,.07);}
+  .add-bar{
+    display:flex; align-items:center; justify-content:center; gap:6px; margin-top:12px; padding:12px;
+    border:1px dashed var(--border); border-radius:12px; color:var(--muted); font-size:12px;
+    cursor:pointer; background:transparent; font-family:inherit; width:100%;
+  }
+  .add-bar:active{background:var(--surface);}
+  .edit-hint{font-size:10px; color:var(--dim); margin-top:2px;}
+
+  /* ---------- 行情报价牌 ---------- */
+  .ticker{
+    position:relative; overflow:hidden; border-radius:18px; padding:15px 16px 13px;
+    background:linear-gradient(158deg,#1B2430 0%,#141A22 58%,#10151B 100%);
+    border:1px solid #27313C;
+    box-shadow:0 12px 28px -20px rgba(0,0,0,.95), inset 0 1px 0 rgba(255,255,255,.045);
+  }
+  .tk-halo{position:absolute; width:230px; height:230px; right:-80px; top:-128px; border-radius:50%; pointer-events:none;}
+  .tk-head{display:flex; align-items:flex-start; justify-content:space-between; position:relative;}
+  .tk-sym{font-size:11px; letter-spacing:1.4px; color:#AEB8C4; font-family:var(--mono); display:flex; align-items:center; gap:6px;}
+  .tk-live{
+    font-style:normal; font-size:8px; letter-spacing:1px; color:#3DD68C;
+    background:rgba(61,214,140,.12); border:1px solid rgba(61,214,140,.25); border-radius:4px; padding:1px 4px;
+  }
+  .tk-live.arc{color:var(--gold); background:rgba(210,153,34,.12); border-color:rgba(210,153,34,.3);}
+  .bd-arch{
+    font-size:10.5px; line-height:1.6; color:var(--muted); margin-top:9px;
+    padding:8px 10px; background:rgba(210,153,34,.07); border-left:2px solid rgba(210,153,34,.5); border-radius:6px;
+  }
+  .tk-sub{font-size:9.5px; color:#5C6672; margin-top:5px;}
+  .tk-badge{
+    font-size:11px; font-variant-numeric:tabular-nums; padding:3px 8px; border-radius:20px; flex-shrink:0;
+  }
+  .tk-badge.up{background:rgba(61,214,140,.12); border:1px solid rgba(61,214,140,.28);}
+  .tk-badge.down{background:rgba(229,72,77,.12); border:1px solid rgba(229,72,77,.28);}
+  .tk-price{
+    font-size:44px; font-weight:600; line-height:1.05; letter-spacing:-1.6px;
+    font-variant-numeric:tabular-nums; margin-top:12px; position:relative;
+  }
+  .tk-price small{font-size:13px; font-weight:400; color:#7D8794; letter-spacing:0; margin-left:5px;}
+  .tk-change{display:flex; align-items:center; gap:8px; margin-top:7px; font-size:12px; font-variant-numeric:tabular-nums;}
+  .tk-pct{padding:1px 6px; border-radius:5px; font-size:11px;}
+  .tk-pct.up{background:rgba(61,214,140,.13);}
+  .tk-pct.down{background:rgba(229,72,77,.13);}
+  .tk-vs{margin-left:auto; font-size:10px; color:#6B7583;}
+  .tk-grid{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:1px; margin-top:13px;
+    background:#232C36; border-radius:9px; overflow:hidden;
+  }
+  .tk-grid > div{background:rgba(17,22,28,.72); padding:7px 9px;}
+  .tk-grid span{font-size:9px; color:#6B7583; display:block;}
+  .tk-grid b{font-size:12.5px; font-weight:500; font-variant-numeric:tabular-nums; margin-top:2px; display:block;}
+
+  /* ---------- K 线卡片 ---------- */
+  .kcard{padding:12px 10px 10px;}
+  .kcard-head{display:flex; align-items:center; justify-content:space-between; padding:0 4px 8px;}
+  .pt-tabs{display:flex; gap:2px; background:#11161C; border:1px solid #232C36; border-radius:9px; padding:2px;}
+  .pt{
+    background:none; border:none; color:#7D8794; font-family:inherit; font-size:11px;
+    padding:5px 11px; border-radius:7px; cursor:pointer; transition:background .15s,color .15s;
+  }
+  .pt.on{background:#E8EDF2; color:#0B0E11; font-weight:500;}
+  .kcard-chg{font-size:12px; font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:5px;}
+  .kcard-chg em{font-style:normal; font-size:10px; opacity:.8;}
+  .kstat{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; border-top:1px solid var(--border); margin-top:8px; padding-top:9px;}
+  .kstat > div{text-align:center;}
+  .kstat span{font-size:9px; color:#5C6672; display:block;}
+  .kstat b{font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; margin-top:2px; display:block;}
+  .khint{font-size:9px; color:#4C5560; text-align:center; margin-top:7px;}
+  /* 根数档位：疏 / 中 / 密。放在图上方而不是右边 —— 图宽本来就紧 */
+  .kzoom{display:flex; align-items:center; gap:4px; padding:0 4px 6px;}
+  .kzoom .kz-l{font-size:9px; color:#4C5560; letter-spacing:.3px;}
+  .kzoom button{
+    font-family:inherit; font-size:9.5px; line-height:1; color:#7C8794; background:#11161C;
+    border:1px solid #232C36; border-radius:6px; padding:4px 8px; cursor:pointer;
+  }
+  .kzoom button.on{color:#0B0E11; background:var(--gold); border-color:var(--gold); font-weight:600;}
+  .kzoom em{font-style:normal; font-size:9px; color:#4C5560; margin-left:auto; font-variant-numeric:tabular-nums;}
+  .k-wrap{position:relative; touch-action:pan-y; user-select:none; -webkit-user-select:none;}
+  .k-tip{
+    position:absolute; width:118px; padding:7px 9px; border-radius:9px; pointer-events:none;
+    background:rgba(21,26,33,.97); border:1px solid #2E3946; opacity:0; transition:opacity .12s;
+    box-shadow:0 8px 18px -10px rgba(0,0,0,.9);
+  }
+  .kt-date{font-size:8.5px; color:#7D8794; font-family:var(--mono);}
+  .kt-price{font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; margin:2px 0 4px; letter-spacing:-.3px;}
+  .kt-price span{font-size:9px; font-weight:400; margin-left:4px; letter-spacing:0;}
+  .kt-row{display:flex; justify-content:space-between; font-size:9px; color:#7D8794; line-height:1.7;}
+  .kt-row b{color:#C6CFD9; font-weight:500; font-variant-numeric:tabular-nums;}
+  .basis-note{font-size:10px; color:#7D8794; line-height:1.65; margin-top:9px; padding-top:9px; border-top:1px solid var(--border);}
+
+  /* ---------- 复盘 ---------- */
+  .rv-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;}
+  .rv-range{font-size:10px; color:#5C6672; font-family:var(--mono);}
+  .rv-hero{padding:14px;}
+  .rv-hero-top{display:flex; justify-content:space-between; align-items:flex-start;}
+  .rv-hero-label{font-size:10px; color:var(--muted);}
+  .rv-hero-num{font-size:34px; font-weight:600; line-height:1.1; font-variant-numeric:tabular-nums; letter-spacing:-1px; margin-top:3px;}
+  .rv-hero-unit{font-size:9.5px; color:#5C6672; margin-top:3px;}
+  .rv-hero-right{text-align:right;}
+  .rv-kg{font-size:15px; font-weight:600; font-variant-numeric:tabular-nums;}
+  .rv-kg small,.rv-kg2 small{font-size:9px; font-weight:400; color:#6B7583; margin-left:3px;}
+  .rv-kg2{font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; margin-top:5px;}
+  .dbars{position:relative; display:flex; align-items:stretch; gap:2px; height:58px; margin-top:12px;}
+  .dbars::after{content:''; position:absolute; left:0; right:0; top:50%; height:1px; background:#2B3441;}
+  .dbar{flex:1; position:relative;}
+  .dbar i{position:absolute; left:0; right:0; border-radius:2px;}
+  /* 0 轴上方 = 赚（净缺口），下方 = 亏（净盈余）；红=赚、绿=亏 */
+  .dbar i.gain{bottom:50%; background:var(--down); opacity:.88;}
+  .dbar i.loss{top:50%; background:var(--up); opacity:.88;}
+
+  .cal{display:grid; grid-template-columns:repeat(7,1fr); gap:4px;}
+  .cal-w{font-size:9px; color:#4C5560; text-align:center; padding-bottom:1px;}
+  .cal-cell{
+    aspect-ratio:1; display:flex; align-items:center; justify-content:center; border-radius:6px;
+    font-size:9px; font-style:normal; background:#171D25; color:#5C6672; font-variant-numeric:tabular-nums;
+  }
+  .cal-cell.blank{background:transparent;}
+  .cal-cell.ok{background:rgba(229,72,77,.22); color:#E5484D; border:1px solid rgba(229,72,77,.34);}
+  .cal-cell.half{background:rgba(139,148,158,.1); color:#8B949E; border:1px solid rgba(139,148,158,.18);}
+  .cal-cell.long{background:rgba(61,214,140,.2); color:#3DD68C; border:1px solid rgba(61,214,140,.36);}
+  .cal-legend{display:flex; gap:12px; margin-top:11px; font-size:9px; color:#6B7583;}
+  .cal-legend span{display:flex; align-items:center; gap:4px;}
+  .dot{width:7px; height:7px; border-radius:2px; display:inline-block;}
+  .dot.ok{background:rgba(229,72,77,.55);}
+  .dot.half{background:rgba(139,148,158,.4);}
+  .dot.long{background:rgba(61,214,140,.55);}
+
+  .src-row{padding:9px 0; border-bottom:1px solid var(--border);}
+  .src-row:last-child{border-bottom:none; padding-bottom:2px;}
+  .src-name{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .src-tags{display:flex; gap:6px; margin-top:5px; flex-wrap:wrap;}
+  .st{font-size:9px; padding:2px 6px; border-radius:5px; font-variant-numeric:tabular-nums;}
+  .st.p{background:rgba(91,155,213,.12); color:#7FB3E0;}
+  .st.f{background:rgba(210,153,34,.12); color:#C9962E;}
+  .st.fb{background:rgba(61,214,140,.1); color:#4FC98D;}
+  .st.zero{background:rgba(139,148,158,.1); color:#6B7583;}
+
+  .cmp-row{display:grid; grid-template-columns:1fr auto 62px; align-items:baseline; gap:10px; padding:9px 0; border-bottom:1px solid var(--border);}
+  .cmp-row:last-of-type{border-bottom:none;}
+  .cmp-name{font-size:12px; color:#AEB8C4;}
+  .cmp-val{font-size:13px; font-variant-numeric:tabular-nums;}
+  .cmp-val em{font-style:normal; font-size:9px; color:#5C6672; margin-left:2px;}
+  .cmp-diff{font-size:11px; text-align:right; font-variant-numeric:tabular-nums;}
+  .cmp-note{font-size:9px; color:#4C5560; margin-top:9px; line-height:1.6;}
+
+  .contrib-row{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-bottom:1px solid var(--border);}
+  .contrib-row:last-child{border-bottom:none; padding-bottom:2px;}
+  .tag{
+    flex-shrink:0; width:22px; height:22px; border-radius:6px; font-size:10px;
+    display:flex; align-items:center; justify-content:center; margin-top:1px;
+  }
+  .tag.down{background:rgba(229,72,77,.13); color:var(--down); border:1px solid rgba(229,72,77,.26);}
+  .tag.up{background:rgba(61,214,140,.11); color:var(--up); border:1px solid rgba(61,214,140,.24);}
+  .tag.gold{background:rgba(210,153,34,.12); color:var(--gold); border:1px solid rgba(210,153,34,.26);}
+  .contrib-t{font-size:12px;}
+  .contrib-d{font-size:10px; color:#6B7583; margin-top:3px; font-variant-numeric:tabular-nums; line-height:1.5;}
+
+  .summary p{font-size:12.5px; line-height:1.85; color:#C6CFD9; margin:0 0 9px;}
+  .summary p:last-child{margin-bottom:0;}
+
+  /* ---------- 成分表拍照 ---------- */
+  .scan-box{border:1px solid var(--border); background:#111721; border-radius:11px; padding:10px 11px; margin:-2px 0 12px;}
+  .scan-guide{display:flex; gap:9px; align-items:flex-start;}
+  .scan-ico{width:26px; height:26px; flex-shrink:0; color:#5B9BD5; opacity:.85; margin-top:1px;}
+  .scan-t{font-size:11.5px; color:#D6DEE7; font-weight:500;}
+  .scan-d{font-size:9.5px; color:#6B7583; line-height:1.6; margin-top:3px;}
+  .scan-actions{display:flex; align-items:center; gap:9px; margin-top:9px;}
+  .scan-btn{
+    flex:1; padding:8px 0; font-size:11.5px; font-family:inherit; cursor:pointer;
+    border-radius:8px; border:1px solid rgba(91,155,213,.32); background:rgba(91,155,213,.1); color:#8FBEE8;
+  }
+  .scan-btn:active{background:rgba(91,155,213,.2);}
+  #scan-thumb{display:none; width:34px; height:34px; object-fit:cover; border-radius:6px; border:1px solid var(--border);}
+  .scan-status{font-size:9.5px; color:#6B7583; line-height:1.5; margin-top:7px;}
+
+  /* ---------- 设置页 ---------- */
+  .seg{display:flex; gap:6px; background:var(--surface2); padding:3px; border-radius:9px; border:1px solid var(--border);}
+  .seg button{
+    flex:1; padding:7px 0; font-size:11.5px; font-family:inherit; cursor:pointer; border:none;
+    border-radius:7px; background:none; color:var(--muted); transition:all .15s;
+  }
+  .seg button.on{background:#2B3642; color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.25);}
+  .set-row{display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:1px solid #1A212A;}
+  .set-row:last-child{border-bottom:none;}
+  .set-label{font-size:12.5px; color:var(--text);}
+  .set-sub{font-size:9.5px; color:var(--dim); margin-top:3px; line-height:1.5; max-width:190px;}
+  .set-input{
+    width:92px; background:var(--surface2); border:1px solid var(--border); color:var(--text);
+    font-size:14px; font-family:inherit; padding:7px 10px; border-radius:8px; outline:none;
+    text-align:right; font-variant-numeric:tabular-nums;
+  }
+  .set-input:focus{border-color:#3A4553;}
+  .set-input.off{opacity:.4;}
+  .unit-r{display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--dim);}
+  .act-grid{display:flex; flex-direction:column; gap:6px; margin-top:4px;}
+  .act-opt{
+    display:flex; align-items:center; gap:9px; padding:9px 11px; border-radius:9px; cursor:pointer;
+    border:1px solid var(--border); background:var(--surface2); transition:all .15s;
+  }
+  .act-opt.on{border-color:rgba(210,153,34,.45); background:rgba(210,153,34,.08);}
+  .act-k{font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; color:var(--gold); min-width:34px;}
+  .act-t{font-size:11.5px; color:var(--text);}
+  .act-d{font-size:9.5px; color:var(--dim); margin-top:2px;}
+
+  /* 热量预算：两根同刻度的条 + 预算刻度线 */
+  .bud-two{display:grid; grid-template-columns:30px 1fr; gap:6px 8px; align-items:center;}
+  .bud-tag{font-size:9.5px; color:var(--dim); letter-spacing:.5px;}
+  .bud-line{position:relative; height:13px; border-radius:4px; background:#1A212A; display:flex; overflow:hidden;}
+  .bud-line i{display:block; height:100%; transition:width .3s;}
+  .bud-mark{position:absolute; top:0; bottom:0; width:1.5px; background:#E8EDF2; z-index:2; box-shadow:0 0 4px rgba(232,237,242,.55);}
+  .bud-scale{display:flex; justify-content:space-between; font-size:8.5px; color:#4C5560; margin-top:6px; padding-left:38px; font-variant-numeric:tabular-nums;}
+  .bud-legend{display:flex; flex-wrap:wrap; gap:10px 14px; margin-top:10px; font-size:10px; color:var(--muted);}
+  .bud-legend span{display:flex; align-items:center; gap:5px; font-variant-numeric:tabular-nums;}
+  .bud-legend b{color:var(--text); font-weight:500;}
+  .surplus-num{font-size:30px; font-weight:600; font-variant-numeric:tabular-nums; line-height:1.05;}
+  .surplus-row{display:flex; align-items:baseline; gap:12px; margin:2px 0 12px;}
+
+  /* 体重波动曲线 */
+  .vol-wrap{margin-top:6px;}
+  .vol-tabs{display:flex; gap:5px;}
+  .vol-tabs button{
+    padding:4px 9px; font-size:10.5px; font-family:inherit; cursor:pointer; border-radius:6px;
+    border:1px solid var(--border); background:none; color:var(--dim);
+  }
+  .vol-tabs button.on{background:#2B3642; color:var(--text); border-color:#38444F;}
+  .vol-legend{display:flex; flex-wrap:wrap; gap:11px; margin-top:9px; font-size:9.5px; color:var(--dim);}
+  .vol-legend span{display:flex; align-items:center; gap:5px;}
+  .vol-line{width:14px; height:0; border-top-width:2px; border-top-style:solid; display:inline-block;}
+  .vol-band{width:14px; height:8px; border-radius:2px; display:inline-block;}
+  .vol-grid{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:#1A212A; border-radius:9px; overflow:hidden; margin-top:11px;}
+  .vol-cell{background:var(--surface); padding:9px 11px;}
+  .vol-cell span{font-size:9.5px; color:var(--dim); display:block;}
+  .vol-cell b{font-size:14px; font-weight:500; font-variant-numeric:tabular-nums; display:block; margin-top:3px;}
+  .vol-cell em{font-style:normal; font-size:9.5px; color:var(--dim); margin-left:3px;}
+  .vol-note{font-size:10px; line-height:1.75; color:#7B8592; margin-top:11px; padding-top:10px; border-top:1px solid #1A212A;}
+
+  /* ---------- 数据 / 备份 ---------- */
+  .dp-grid{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:#1A212A; border-radius:9px; overflow:hidden;}
+  .dp-cell{background:var(--surface); padding:9px 11px;}
+  .dp-cell span{font-size:9.5px; color:var(--dim); display:block;}
+  .dp-cell b{font-size:14px; font-weight:500; font-variant-numeric:tabular-nums; display:block; margin-top:3px;}
+  .dp-cell em{font-style:normal; font-size:9.5px; color:var(--dim); margin-left:3px;}
+  .dp-acts{display:flex; flex-direction:column; gap:8px;}
+  .dp-btn{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
+    padding:11px 13px; border-radius:10px; border:1px solid var(--border); background:var(--surface2);
+    color:var(--text); font-size:12.5px; font-family:inherit; text-align:left; cursor:pointer;
+    transition:transform .12s, border-color .15s;
+  }
+  .dp-btn:active{transform:scale(.99);}
+  .dp-btn small{display:block; font-size:9.5px; color:var(--dim); margin-top:3px; font-weight:400; line-height:1.4;}
+  .dp-btn i{font-style:normal; font-size:13px; color:var(--dim); flex-shrink:0;}
+  .dp-btn.primary{border-color:rgba(210,153,34,.42); background:rgba(210,153,34,.09);}
+  .dp-btn.primary .dp-k{color:var(--gold);}
+  .dp-btn.primary i{color:var(--gold);}
+  .dp-btn.danger{border-color:rgba(229,72,77,.28); background:rgba(229,72,77,.06); color:#F0807F;}
+  .dp-k{font-size:12.5px; font-weight:500;}
+  .dp-det summary{
+    display:flex; align-items:center; justify-content:space-between; list-style:none; cursor:pointer;
+    padding:11px 13px; border-radius:10px; border:1px solid var(--border); background:var(--surface2);
+    font-size:12.5px; color:var(--text);
+  }
+  .dp-det summary::-webkit-details-marker{display:none;}
+  .dp-det summary::after{content:'展开'; font-size:9.5px; color:var(--dim);}
+  .dp-det[open] summary::after{content:'收起';}
+  .dp-det[open] summary{border-bottom-left-radius:0; border-bottom-right-radius:0;}
+  .dp-code{
+    width:100%; height:74px; padding:9px 10px; resize:vertical; outline:none;
+    background:#0F1419; border:1px solid var(--border); border-top:none;
+    border-bottom-left-radius:10px; border-bottom-right-radius:10px;
+    color:var(--muted); font-family:var(--mono); font-size:9.5px; line-height:1.55;
+  }
+  .dp-det .dp-btn{margin-top:8px;}
+  .dp-snap{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid #1A212A;}
+  .dp-snap:last-of-type{border-bottom:none;}
+  .dp-snap .t{font-size:11.5px;}
+  .dp-snap .d{font-size:9.5px; color:var(--dim); margin-top:3px; font-variant-numeric:tabular-nums;}
+  .dp-snap button{
+    padding:5px 11px; font-size:10.5px; font-family:inherit; cursor:pointer; border-radius:7px; flex-shrink:0;
+    border:1px solid var(--border); background:none; color:var(--muted);
+  }
+  .dp-snap button:active{border-color:var(--gold); color:var(--gold);}
+  .dp-warn{font-size:10px; color:#D29922; line-height:1.6; margin-top:10px;}
+  .dp-empty{font-size:10.5px; color:var(--dim); padding:16px 0; text-align:center;}
+  .dp-link{color:var(--gold); cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <h1>卡路里交易所</h1>
+      <span>CAL·EX</span>
+    </div>
+    <div class="streak" id="streak">连续做空 6 天</div>
+  </header>
+  <main id="main">
+    <div class="datebar" id="datebar"></div>
+    <div id="view"></div>
+  </main>
+  <nav>
+    <button data-view="market" class="on">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M3 17l5-6 4 3 5-8 4 4"/></svg>
+      行情
+    </button>
+    <button data-view="nearby">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M3 4.6h2.3l2.1 9.7h9.5l1.9-6.7H6.5"/><circle cx="9.6" cy="18.6" r="1.35"/><circle cx="16" cy="18.6" r="1.35"/></svg>
+      买入
+    </button>
+    <button data-view="log">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M12.2 20.6a5.6 5.6 0 01-5.6-5.6c0-3.2 2.4-6 3.8-7.6.4 1.8 1.2 2.6 2.1 2.6 1 0 1.6-1 1.3-3.8 2.2 1.9 4.1 5 4.1 8.2a5.6 5.6 0 01-5.7 6.2z"/></svg>
+      卖出
+    </button>
+    <button data-view="review">
+      <svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4.4" width="14" height="15.2" rx="2.2"/><path d="M9 9.2h6M9 12.6h6M9 16h3.4"/></svg>
+      复盘
+    </button>
+    <button data-view="profile">
+      <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c1.2-3.6 4-5.4 7.5-5.4s6.3 1.8 7.5 5.4"/></svg>
+      我的
+    </button>
+  </nav>
+  <div class="toast" id="toast"></div>
+
+  <div class="mask" id="mask"></div>
+  <div class="sheet" id="sheet">
+    <div class="sheet-handle"></div>
+    <h3><span id="s-title">添加标的</span><em>热量 = 每 100g 热量 × 克重 ÷ 100</em></h3>
+
+    <div class="field">
+      <label>食物名称</label>
+      <input id="f-food" placeholder="如：红烧肉、鸡胸沙拉" autocomplete="off">
+    </div>
+    <div class="sug" id="sug"></div>
+
+    <div class="scan-box">
+      <div class="scan-guide">
+        <svg class="scan-ico" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.6">
+          <rect x="6" y="5" width="28" height="30" rx="3"/>
+          <path d="M11 12h18M11 17h18M11 22h18M11 27h11"/>
+          <path d="M31 30l4 4M35 30l-4 4" stroke-width="1.4"/>
+        </svg>
+        <div>
+          <div class="scan-t">只拍背面的营养成分表</div>
+          <div class="scan-d">对准白底黑字那张表，让它占满画面、四边对齐。不要拍正面 logo、配料表或条形码。</div>
+        </div>
+      </div>
+      <div class="scan-actions">
+        <button id="btn-scan" class="scan-btn">打开相机 · 拍成分表</button>
+        <img id="scan-thumb" alt="">
+      </div>
+      <div id="scan-status" class="scan-status"></div>
+    </div>
+    <input type="file" id="file-cam" accept="image/*" capture="environment" style="display:none">
+
+    <div class="row2">
+      <div class="field">
+        <label>克重 (g)</label>
+        <input id="f-grams" type="number" inputmode="decimal" placeholder="200">
+      </div>
+      <div class="field">
+        <label>每 100g 热量 (kcal)</label>
+        <input id="f-per100" type="number" inputmode="decimal" placeholder="470">
+      </div>
+    </div>
+
+    <div class="preview">
+      <div><b id="p-kcal">0</b> <span style="font-size:11px">kcal</span></div>
+      <span id="p-eff">做空效率 —</span>
+    </div>
+
+    <details id="nutri-box" style="margin-bottom:11px">
+      <summary style="font-size:10px;color:var(--muted);cursor:pointer;padding:5px 0">营养素（每 100g）· 可手填</summary>
+      <div class="row2" style="margin-top:9px">
+        <div class="field"><label>蛋白质 g</label><input id="f-p" type="number" inputmode="decimal" placeholder="0"></div>
+        <div class="field"><label>脂肪 g</label><input id="f-f" type="number" inputmode="decimal" placeholder="0"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>碳水 g</label><input id="f-c" type="number" inputmode="decimal" placeholder="0"></div>
+        <div class="field"><label>膳食纤维 g</label><input id="f-fb" type="number" inputmode="decimal" placeholder="0"></div>
+      </div>
+    </details>
+
+    <div class="row2">
+      <div class="field">
+        <label>门店</label>
+        <input id="f-shop" placeholder="如：楼下快餐">
+      </div>
+      <div class="field">
+        <label>价格 (元)</label>
+        <input id="f-price" type="number" inputmode="decimal" placeholder="25">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>品类</label>
+        <select id="f-cat">
+          <option value="快餐">快餐</option>
+          <option value="轻食">轻食</option>
+          <option value="正餐">正餐</option>
+          <option value="饮品">饮品</option>
+          <option value="便利店">便利店</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>距离</label>
+        <input id="f-dist" placeholder="如：300m">
+      </div>
+    </div>
+
+    <div class="btns">
+      <button class="danger" id="btn-del">删除</button>
+      <button class="primary" id="btn-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const KCAL_PER_KG = 7700;
+
+const state = {
+  view: 'market',
+  category: 'all',
+  weight: 64.20,          // 昨收 = 当前报价；开仓价见 OPEN_PRICE
+  targetWeight: 62.00,
+  liquidateWeight: 65.50,
+  streak: 6,
+  logs: [
+    { id: 1, type: 'food', name: '红烧肉盖饭', kcal: 820, price: 28, p: 22, f: 38, c: 95, fb: 3 },
+    { id: 2, type: 'food', name: '奶茶（三分糖）', kcal: 380, price: 18, p: 5, f: 13, c: 61, fb: 0 },
+    { id: 3, type: 'food', name: '鸡胸沙拉', kcal: 310, price: 25, p: 31, f: 12, c: 19, fb: 6 },
+    { id: 6, type: 'food', name: '拿铁（大杯）', kcal: 380, price: 32, p: 20, f: 20, c: 30, fb: 0 },
+    { id: 4, type: 'burn', name: '慢跑', kcal: 234, mins: 30, met: 8.3 },
+    { id: 5, type: 'burn', name: '力量训练', kcal: 193, mins: 45, met: 5.0 }
+  ],
+  /* 运动录入草稿。kcal 为 null 表示按公式实时算，非 null 表示用户手改过 */
+  exEditId: null,
+  exDraft: { pick: 1, name: '慢跑', met: 8.3, mins: 30, kcal: null },
+  period: 'D',
+  boardTab: 'today',      // 首页第一屏的大盘口径：today | month
+  reviewPeriod: 'W',
+  volRange: 30,
+  pfTab: 'nutri',         // 「我的」页内切换：nutri 营养 | set 设置 | data 数据备份
+  kZoom: 1,               // K 线密度档位：0 疏 / 1 中 / 2 密
+  selDate: null,          // 所选交易日（YYYY-MM-DD），启动时补为今天
+  focus: -1
+};
+
+/* 本地食物库：每 100g 可食部。
+   k = 热量 kcal，p = 蛋白质 g，f = 脂肪 g，c = 碳水 g，fb = 膳食纤维 g。
+   量级参考《中国食物成分表》常见值，液体按 1ml ≈ 1g 近似。
+   这是离线主力数据源 —— 联网接口实测不稳定，中式家常菜命中率低，
+   把准确数据放在本地才是正解。 */
+const FOOD_DB = [
+  // 主食
+  { n:'米饭', k:116, p:2.6, f:0.3, c:25.9, fb:0.3 }, { n:'白粥', k:46, p:1.1, f:0.2, c:9.9, fb:0.1 },
+  { n:'馒头', k:223, p:7, f:1.1, c:47, fb:1.3 }, { n:'花卷', k:214, p:6.4, f:1, c:45, fb:1.2 },
+  { n:'面条（熟）', k:110, p:3.9, f:0.4, c:22.8, fb:0.5 }, { n:'米粉（熟）', k:109, p:1.8, f:0.2, c:24.9, fb:0.3 },
+  { n:'全麦面包', k:246, p:9, f:4.2, c:43, fb:6 }, { n:'白面包', k:312, p:8.3, f:5.1, c:58.6, fb:2.5 },
+  { n:'燕麦片（干）', k:377, p:13, f:6.7, c:66, fb:10 }, { n:'玉米（鲜）', k:106, p:4, f:1.2, c:19.9, fb:2.9 },
+  { n:'红薯', k:99, p:1.1, f:0.2, c:23.1, fb:1.6 }, { n:'紫薯', k:82, p:1.3, f:0.2, c:17.8, fb:1.2 },
+  { n:'土豆', k:77, p:2, f:0.1, c:17.2, fb:0.7 }, { n:'山药', k:57, p:1.9, f:0.2, c:12.4, fb:0.8 },
+  { n:'南瓜', k:23, p:0.7, f:0.1, c:4.5, fb:0.8 }, { n:'芋头', k:80, p:2.2, f:0.2, c:17, fb:1 },
+  { n:'藜麦（熟）', k:120, p:4.4, f:1.9, c:21.3, fb:2.8 }, { n:'泡面', k:472, p:9.5, f:21, c:60, fb:2.4 },
+  { n:'炒饭', k:186, p:4.5, f:6, c:29, fb:0.7 }, { n:'盖浇饭', k:160, p:5, f:5.5, c:22, fb:0.8 },
+  // 肉蛋
+  { n:'红烧肉', k:470, p:9, f:47, c:3, fb:0 }, { n:'回锅肉', k:420, p:11, f:39, c:6, fb:0.5 },
+  { n:'红烧排骨', k:330, p:17, f:26, c:7, fb:0.2 }, { n:'糖醋里脊', k:280, p:14, f:17, c:18, fb:0.3 },
+  { n:'小炒黄牛肉', k:190, p:18, f:11, c:4, fb:0.5 }, { n:'水煮牛肉', k:220, p:17, f:15, c:4, fb:0.5 },
+  { n:'五花肉', k:568, p:9, f:59, c:0, fb:0 }, { n:'猪里脊', k:155, p:20, f:7.9, c:0.7, fb:0 },
+  { n:'鸡胸肉（熟）', k:133, p:19.4, f:5, c:0.5, fb:0 }, { n:'鸡腿（熟）', k:181, p:16, f:13, c:0, fb:0 },
+  { n:'炸鸡', k:279, p:22, f:18, c:8, fb:0.4 }, { n:'鸡翅（烤）', k:194, p:17.4, f:11.8, c:4.6, fb:0 },
+  { n:'牛肉（瘦）', k:125, p:20, f:4.2, c:1.2, fb:0 }, { n:'牛排', k:190, p:21, f:12, c:0, fb:0 },
+  { n:'羊肉', k:203, p:19, f:14, c:0, fb:0 }, { n:'三文鱼', k:208, p:20, f:14, c:0, fb:0 },
+  { n:'巴沙鱼', k:88, p:18, f:2, c:0, fb:0 }, { n:'虾', k:93, p:18.6, f:0.8, c:2.8, fb:0 },
+  { n:'鸡蛋', k:144, p:13.3, f:8.8, c:2.8, fb:0 }, { n:'煎蛋', k:196, p:13.6, f:14.8, c:1, fb:0 },
+  { n:'皮蛋', k:171, p:14.2, f:10.7, c:4.5, fb:0 }, { n:'火腿肠', k:212, p:14, f:10.4, c:15.6, fb:0 },
+  { n:'培根', k:181, p:22, f:10, c:1.5, fb:0 }, { n:'烤肠', k:290, p:13, f:24, c:6, fb:0 },
+  // 豆乳
+  { n:'豆腐', k:82, p:8.1, f:3.7, c:4.2, fb:0.4 }, { n:'豆浆', k:31, p:3, f:1.6, c:1.2, fb:1.1 },
+  { n:'豆干', k:140, p:16.2, f:3.6, c:11, fb:0.8 }, { n:'腐竹', k:459, p:44.6, f:21.7, c:22.3, fb:1 },
+  { n:'牛奶', k:54, p:3, f:3.2, c:3.4, fb:0 }, { n:'脱脂牛奶', k:33, p:3.4, f:0.3, c:4.8, fb:0 },
+  { n:'酸奶', k:72, p:2.5, f:2.7, c:9.3, fb:0 }, { n:'希腊酸奶', k:59, p:10, f:0.4, c:3.6, fb:0 },
+  { n:'奶酪', k:328, p:25.7, f:23.5, c:3.5, fb:0 },
+  // 蔬菜
+  { n:'西兰花', k:34, p:4.1, f:0.6, c:2.7, fb:1.6 }, { n:'生菜', k:15, p:1.3, f:0.3, c:2, fb:0.7 },
+  { n:'番茄', k:20, p:0.9, f:0.2, c:4, fb:0.5, alias:['西红柿'] }, { n:'黄瓜', k:16, p:0.8, f:0.2, c:2.9, fb:0.5 },
+  { n:'菠菜', k:28, p:2.6, f:0.3, c:4.5, fb:1.7 }, { n:'白菜', k:17, p:1.5, f:0.1, c:3.2, fb:0.8 },
+  { n:'油麦菜', k:15, p:1.4, f:0.4, c:2.1, fb:0.6 }, { n:'芹菜', k:22, p:1.2, f:0.2, c:4.5, fb:1.2 },
+  { n:'胡萝卜', k:39, p:1, f:0.2, c:8.8, fb:1.1 }, { n:'茄子', k:23, p:1.1, f:0.2, c:4.9, fb:1.3 },
+  { n:'青椒', k:22, p:1, f:0.2, c:5.4, fb:1.4 }, { n:'蘑菇', k:20, p:2.7, f:0.1, c:2.5, fb:2.1 },
+  { n:'海带', k:13, p:1.2, f:0.1, c:2.1, fb:0.5 }, { n:'木耳（干）', k:265, p:12.1, f:1.5, c:30, fb:29.9 },
+  // 水果
+  { n:'苹果', k:53, p:0.2, f:0.2, c:13.5, fb:1.2 }, { n:'香蕉', k:93, p:1.4, f:0.2, c:22, fb:1.2 },
+  { n:'蓝莓', k:57, p:0.7, f:0.3, c:12, fb:2.4 }, { n:'草莓', k:32, p:1, f:0.2, c:7.1, fb:2 },
+  { n:'橙子', k:48, p:0.8, f:0.2, c:11.1, fb:0.6 }, { n:'葡萄', k:44, p:0.5, f:0.2, c:10.3, fb:0.4 },
+  { n:'西瓜', k:26, p:0.6, f:0.1, c:6.8, fb:0.3 }, { n:'芒果', k:35, p:0.6, f:0.2, c:8.3, fb:1.3 },
+  { n:'猕猴桃', k:61, p:0.8, f:0.6, c:14.5, fb:2.6 }, { n:'牛油果', k:171, p:2, f:15.3, c:7.4, fb:6.7 },
+  // 饮品
+  { n:'奶茶（三分糖）', k:36, p:0.5, f:1.2, c:5.8, fb:0 }, { n:'奶茶（全糖）', k:62, p:0.5, f:1.5, c:11.5, fb:0 },
+  { n:'拿铁', k:37, p:2, f:2, c:3, fb:0 }, { n:'美式咖啡', k:2, p:0.1, f:0, c:0.3, fb:0 },
+  { n:'可乐', k:43, p:0, f:0, c:10.6, fb:0 }, { n:'无糖可乐', k:0.4, p:0, f:0, c:0.1, fb:0 },
+  { n:'果汁', k:45, p:0.2, f:0.1, c:10.9, fb:0.1 }, { n:'啤酒', k:32, p:0.4, f:0, c:3.6, fb:0 },
+  { n:'白酒', k:298, p:0, f:0, c:0, fb:0 },
+  // 加工 / 快餐
+  { n:'薯条', k:312, p:3.4, f:15, c:41, fb:3.8 }, { n:'汉堡（牛）', k:250, p:13, f:11, c:25, fb:1.5 },
+  { n:'披萨', k:266, p:11, f:10, c:33, fb:2.3 }, { n:'关东煮', k:93, p:8, f:3, c:9, fb:1 },
+  { n:'麻辣烫', k:130, p:7, f:7, c:10, fb:1.5 }, { n:'小笼包', k:230, p:9, f:10, c:26, fb:1 },
+  { n:'煎饺', k:230, p:8, f:10, c:27, fb:1.2 }, { n:'肉包', k:227, p:8, f:8, c:30, fb:1.2 },
+  { n:'油条', k:388, p:6.9, f:17.6, c:51, fb:0.9 }, { n:'鸡胸沙拉', k:89, p:9, f:3.5, c:5, fb:1.8 },
+  { n:'蔬菜沙拉', k:45, p:1.8, f:2.5, c:4.5, fb:2 }, { n:'沙拉酱', k:700, p:1.5, f:75, c:6, fb:0 },
+  { n:'番茄酱', k:81, p:1.7, f:0.2, c:19.6, fb:1 }, { n:'老干妈', k:526, p:12, f:43, c:22, fb:6 },
+  { n:'橄榄油', k:899, p:0, f:99.9, c:0, fb:0 }, { n:'花生', k:574, p:24.8, f:44.3, c:21.7, fb:5.5 },
+  { n:'瓜子', k:606, p:22.6, f:49, c:17.3, fb:4.5 }, { n:'薯片', k:536, p:7, f:33, c:52, fb:4.4 },
+  { n:'巧克力', k:586, p:4.3, f:40, c:53, fb:1 }, { n:'饼干', k:435, p:8, f:15, c:65, fb:2 },
+  { n:'蛋糕', k:347, p:6, f:13, c:52, fb:1 }, { n:'月饼', k:411, p:8, f:18, c:55, fb:1.5 },
+  { n:'汤圆', k:311, p:4.5, f:10, c:50, fb:1 }, { n:'粽子', k:195, p:4.5, f:5, c:33, fb:1 }
+];
+
+/* 品类基准热量：用于计算"做空效率"，即相对同类的省卡幅度 */
+const CAT_BASE = { 快餐:800, 轻食:800, 正餐:800, 饮品:350, 便利店:400 };
+
+const DEFAULT_SHOPS = [
+  { id:'s1', shop:'轻食工坊', dish:'鸡胸沙拉', food:'鸡胸沙拉', per100:89, grams:350, price:25, dist:'350m', cat:'轻食' },
+  { id:'s2', shop:'茶百道', dish:'三分糖乌龙', food:'奶茶（三分糖）', per100:36, grams:500, price:14, dist:'200m', cat:'饮品' },
+  { id:'s3', shop:'沙县小吃', dish:'鸡腿饭（少饭）', food:'鸡腿（熟）', per100:138, grams:450, price:15, dist:'120m', cat:'快餐' },
+  { id:'s4', shop:'711 便利店', dish:'关东煮 5 串', food:'关东煮', per100:93, grams:300, price:16, dist:'80m', cat:'便利店' },
+  { id:'s5', shop:'湘辣小厨', dish:'小炒黄牛肉盖饭', food:'小炒黄牛肉', per100:176, grams:500, price:26, dist:'600m', cat:'快餐' },
+  { id:'s6', shop:'麦当劳', dish:'双层牛堡套餐', food:'汉堡（牛）', per100:191, grams:550, price:32, dist:'400m', cat:'快餐' }
+];
+
+const STORE_KEY = 'calex.shops.v1';
+const FOOD_KEY = 'calex.myfoods.v1';
+
+/** 用户自己录过的食物：越用越准的个人食物库 */
+function loadUserFoods() {
+  try {
+    const raw = localStorage.getItem(FOOD_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveUserFoods() {
+  try {
+    localStorage.setItem(FOOD_KEY, JSON.stringify(userFoods));
+    touchData('食物库');
+  } catch (e) {
+    /* 静默失败：不影响主流程 */
+  }
+}
+
+function learnFood(name, per100, nutri) {
+  if (!name || !(per100 > 0)) return;
+  const key = name.trim();
+  const n = nutri || {};
+  const rec = { n: key, k: per100 };
+  ['p', 'f', 'c', 'fb'].forEach((k) => {
+    if (n[k] != null && n[k] !== '') rec[k] = Number(n[k]);
+  });
+  const hit = userFoods.find((f) => f.n === key);
+  if (hit) {
+    Object.assign(hit, rec);
+  } else {
+    userFoods.unshift(rec);
+    if (userFoods.length > 300) userFoods.pop();
+  }
+  saveUserFoods();
+}
+
+function loadShops() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return DEFAULT_SHOPS.map(fillNutrition);
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) && arr.length ? arr.map(fillNutrition) : DEFAULT_SHOPS.map(fillNutrition);
+  } catch (e) {
+    return DEFAULT_SHOPS.map(fillNutrition);
+  }
+}
+
+function saveShops() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(shops));
+    touchData('盘口');
+  } catch (e) {
+    toast('本地存储不可用，改动仅在本次会话生效');
+  }
+}
+
+let shops = loadShops();
+let userFoods = loadUserFoods();
+
+/* 常见运动的 MET（代谢当量）。1 MET = 静息代谢水平，
+   所以「运动额外挣到的消耗」要减掉 1：(MET − 1) × 体重 × 小时。
+   不减这一项，运动消耗里就混进了基础代谢，会和 bmr() 重复计一遍，总消耗虚高。 */
+const blankDraft = () => ({ pick: 1, name: '慢跑', met: 8.3, mins: 30, kcal: null });
+
+const EXERCISES = [
+  { name: '快走', met: 4.3, hint: '约 6km/h' },
+  { name: '慢跑', met: 8.3, hint: '约 8km/h' },
+  { name: '跑步', met: 9.8, hint: '约 10km/h' },
+  { name: '骑行', met: 6.8, hint: '约 15km/h' },
+  { name: '游泳', met: 7.0, hint: '中速' },
+  { name: '跳绳', met: 12.3, hint: '中速' },
+  { name: '力量训练', met: 5.0, hint: '器械 / 自重' },
+  { name: 'HIIT', met: 8.0, hint: '高强度间歇' },
+  { name: '瑜伽', met: 2.5, hint: '哈他' },
+  { name: '爬楼梯', met: 8.8, hint: '' },
+  { name: '篮球', met: 6.5, hint: '' },
+  { name: '羽毛球', met: 5.5, hint: '' },
+  { name: '椭圆机', met: 5.0, hint: '' },
+  { name: '划船机', met: 7.0, hint: '' },
+  { name: '家务', met: 3.0, hint: '拖地 / 整理' }
+];
+
+const metBurn = (met, mins) =>
+  Math.max(0, Math.round(((Number(met) || 0) - 1) * state.weight * (Math.max(0, Number(mins) || 0) / 60)));
+
+const CATS = [
+  { k:'all', t:'全部' }, { k:'轻食', t:'轻食' }, { k:'快餐', t:'快餐' },
+  { k:'正餐', t:'正餐' }, { k:'饮品', t:'饮品' }, { k:'便利店', t:'便利店' }
+];
+
+/* ================= 个人档案与热量测算 =================
+   预算的算法链条（每一环都能在界面上看到，不做黑箱）：
+
+     基础代谢 BMR（Mifflin-St Jeor）
+       × 日常活动系数 = TDEE（生活消耗）
+       + 今日记录的训练 = 当日总消耗
+       − 目标缺口 = 今日热量预算
+
+   ⚠️ 关键设计：活动系数只算「生活活动」（通勤、走路、家务、上班），
+   刻意训练单独用记录加回来。如果把训练也塞进系数里，两项会重复计算，
+   预算虚高，人会越吃越多还以为没超 —— 这是所有卡路里 App 最常见的坑。
+
+   为什么走本地公式而不联网：BMR 是可确定性计算的，联网只会引入不确定。
+   但不同公式差异不小（Mifflin vs Harris-Benedict 可差 100~200 kcal），
+   所以界面上把区间一并给出，让人知道这是估算不是测量。 */
+
+const PROFILE_KEY = 'calex.profile.v1';
+
+const DEFAULT_PROFILE = {
+  mode: 'auto',        // auto = 按身体数据测算；manual = 直接指定每日预算
+  sex: 'male',
+  age: 32,
+  height: 175,
+  activity: 1.3,       // 日常活动系数（不含训练）
+  deficit: 500,        // 目标缺口
+  manualKcal: 1900     // 手动模式下的每日预算
+};
+
+const ACTIVITY_LEVELS = [
+  { v: 1.2, t: '久坐', d: '办公室 / 学生，几乎不走动' },
+  { v: 1.3, t: '轻度', d: '通勤走动，每天 3000~6000 步' },
+  { v: 1.45, t: '中度', d: '每天 8000~12000 步，或常站着工作' },
+  { v: 1.6, t: '高度', d: '体力工作，或每天 15000 步以上' },
+  { v: 1.75, t: '极高', d: '重体力工作 / 建筑 / 农活' }
+];
+
+function loadProfile() {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if (!raw) return { ...DEFAULT_PROFILE };
+    const p = JSON.parse(raw);
+    return { ...DEFAULT_PROFILE, ...(p && typeof p === 'object' ? p : {}) };
+  } catch (e) {
+    return { ...DEFAULT_PROFILE };
+  }
+}
+
+function saveProfile() {
+  try {
+    /* 体重挂在 state 上（它就是当日行情报价），但它是用户亲手填的数据，
+       必须一起落盘 —— 否则刷新一下就回到默认 64.20，等于白改。 */
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({ ...profile, weight: state.weight }));
+    touchData('设置');
+  } catch (e) {
+    toast('本地存储不可用，设置仅在本次会话生效');
+  }
+}
+
+let profile = loadProfile();
+
+/* 上次填的体重优先于内置默认值；越界的一律忽略，防止脏数据把行情搞崩 */
+if (Number(profile.weight) >= 30 && Number(profile.weight) <= 250) {
+  state.weight = Number(profile.weight);
+}
+
+/* Mifflin-St Jeor：目前对普通人群误差最小的公式（±10% 内） */
+function bmrMifflin(w, h, a, sex) {
+  return 10 * w + 6.25 * h - 5 * a + (sex === 'male' ? 5 : -161);
+}
+/* Harris-Benedict 修订版：老公式，普遍略偏高，用来给上界参考 */
+function bmrHarris(w, h, a, sex) {
+  return sex === 'male'
+    ? 88.362 + 13.397 * w + 4.799 * h - 5.677 * a
+    : 447.593 + 9.247 * w + 3.098 * h - 4.330 * a;
+}
+
+const actFactor = () => Math.max(1, Number(profile.activity) || 1.2);
+const bmrBase = () => {
+  const h = Number(profile.height) || 170;
+  const a = Number(profile.age) || 30;
+  return bmrMifflin(state.weight, h, a, profile.sex);
+};
+const bmr = () => Math.round(bmrBase());
+const tdee = () => Math.round(bmrBase() * actFactor());
+const neat = () => tdee() - bmr();                       // 生活活动那部分消耗
+
+/* 安全下限：不低于基础代谢的 85%，也不低于性别通用下限。
+   BMR 是躺着不动也要烧掉的量，长期吃不到这个数，掉的主要是肌肉和代谢。 */
+const budgetFloor = () => Math.max(Math.round(bmrBase() * 0.85), profile.sex === 'male' ? 1500 : 1200);
+
+/* 摄入 / 消耗 / 净额都按「所选交易日」算：
+   归档日（过去某天且本地没有逐笔记录）直接取历史序列里的汇总数，
+   这样行情、大盘、复盘、营养看到的是同一天的同一组数字。 */
+const intake = () => {
+  const a = archivedDay();
+  if (a) return a.intake;
+  return state.logs.filter(l => l.type === 'food').reduce((s, l) => s + l.kcal, 0);
+};
+const exerciseBurn = () => {
+  const a = archivedDay();
+  if (a) return Math.max(0, a.burn - tdee());   // 归档日的消耗里扣掉基础代谢与日常活动
+  return state.logs.filter(l => l.type === 'burn').reduce((s, l) => s + l.kcal, 0);
+};
+const burn = () => tdee() + exerciseBurn();
+const net = () => intake() - burn();
+const kgDelta = () => net() / KCAL_PER_KG;
+const liveWeight = () => {
+  const a = archivedDay();
+  return a ? a.close : state.weight + kgDelta();
+};
+const caloriesOf = (s) => Math.round(((Number(s.per100) || 0) * (Number(s.grams) || 0)) / 100);
+const efficiency = (s) => {
+  const price = Number(s.price) || 0;
+  if (price <= 0) return 0;
+  const base = CAT_BASE[s.cat] || 800;
+  return Math.round(((base - caloriesOf(s)) / price) * 10) / 10;
+};
+const fmt = (n, d = 2) => Number(n).toFixed(d);
+const fmtVol = (v) => (v >= 10000 ? Math.round(v / 1000) + 'k' : String(Math.round(v)));
+const signCls = (n) => (n > 0 ? 'up' : n < 0 ? 'down' : 'flat');
+const signTxt = (n, d = 2) => (n > 0 ? '+' : '') + fmt(n, d);
+/* 屏幕上的「盈亏」= 消耗 − 摄入 = −net()。减脂是做空：缺口越大越是赚，
+   所以正数=赚、负数=亏，跟行情软件一致。内部 net()/gap 仍保持原方向，只在显示时取反。 */
+const profitOf = (netVal) => -netVal;
+const profitTxt = (netVal, d = 0) => (profitOf(netVal) > 0 ? '+' : '') + fmt(profitOf(netVal), d);
+const profitCls = (netVal) => (netVal < 0 ? 'down' : netVal > 0 ? 'up' : 'flat');
+
+/* 今日热量预算：本次改造的核心。
+   auto   → 总消耗 − 目标缺口，训练了就能多吃（这才是可持续的模型）
+   manual → 用户直接指定，不随运动变化（适合严格控卡阶段） */
+function budgetInfo() {
+  const ex = exerciseBurn();
+  const floor = budgetFloor();
+  const base = { bmr: bmr(), tdee: tdee(), neat: neat(), exercise: ex, floor };
+
+  if (profile.mode === 'manual') {
+    const raw = Math.max(0, Math.round(Number(profile.manualKcal) || 0));
+    return { ...base, mode: 'manual', kcal: raw, raw, capped: false };
+  }
+
+  const deficit = Number(profile.deficit) || 0;
+  const raw = Math.round(tdee() + ex - deficit);
+  const kcal = Math.max(floor, raw);
+  return { ...base, mode: 'auto', kcal, raw, deficit, capped: raw < floor };
+}
+
+const intakeBudget = () => budgetInfo().kcal;
+
+/* 有效目标缺口：自动模式下恒等于 profile.deficit；
+   手动模式下由「预算 vs 消耗」反推，可能是负数 —— 那就是吃超了，即盈余。 */
+const targetDeficit = () => Math.round(burn() - intakeBudget());
+
+/* 热量盈余：摄入 − 预算。正数是超预算（做多），负数是还有余量（做空）。
+   注意它和 net() 不是一回事：net 是「摄入 − 总消耗」的真实缺口，
+   盈余是「相对计划」的偏离。两个都要看，否则会误以为自己很努力。 */
+const surplus = () => intake() - intakeBudget();
+const surplusRate = () => {
+  const t = intakeBudget();
+  return t > 0 ? (surplus() / t) * 100 : 0;
+};
+
+/* ================= 行情数据引擎 =================
+   日 / 周 / 月 / 季 / 年 五张 K 线全部来自同一份日度序列聚合，
+   不是五张各画各的图 —— 否则周期之间会自相矛盾。
+
+   ⚠️ 历史行情为演示数据：由确定性算法按「体重控制点 + 每日净缺口 + 水分基差」
+   生成，保证 Open[i] = Close[i-1] 且昨日收盘等于当前报价。
+   真实产品里这一段应替换为逐日累积的真实记录，接口不用改。 */
+
+const DAY_MS = 86400000;
+const OPEN_PRICE = 66.80;          // 开仓价（成本价）
+const OPEN_DAY = '2025-07-01';     // 开仓日：此前的走势属于"开户前的体重史"
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const todayMid = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* 体重控制点：决定长期走势的骨架。
+   前段是增重期（相当于一直在做多），2023 年起转向做空，2025-07 开仓。 */
+const WEIGHT_CP = [
+  ['2021-10-26', 79.40],
+  ['2022-03-01', 80.10],
+  ['2022-10-01', 81.70],
+  ['2023-03-01', 82.90],   // 增重高点
+  ['2023-09-01', 74.90],
+  ['2024-04-01', 71.30],
+  ['2024-11-01', 69.60],
+  ['2025-03-01', 68.90],
+  ['2025-07-01', 66.80],   // 开仓做空
+  ['2025-12-01', 65.80],
+  ['2026-04-01', 66.30],   // 反弹
+  ['2026-08-01', 64.90]
+];
+
+function buildDays(nDays) {
+  const rnd = mulberry32(20261025);
+  const gauss = () => {
+    let u = 0, v = 0;
+    while (!u) u = rnd();
+    while (!v) v = rnd();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  };
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  const end = todayMid();
+  end.setDate(end.getDate() - 1);                       // 序列止于昨天
+  const start = new Date(end.getTime() - (nDays - 1) * DAY_MS);
+
+  /* 控制点：首点对齐序列起点，末点对齐昨收，保证首尾严格落位 */
+  const cps = [{ t: start, w: WEIGHT_CP[0][1] }];
+  WEIGHT_CP.slice(1).forEach(([s, w]) => {
+    const t = new Date(s + 'T00:00:00');
+    if (t > start && t < end) cps.push({ t, w });
+  });
+  cps.push({ t: end, w: state.weight });
+
+  /* 逐日基准缺口：区间左闭右开，最后一段包含末日，天数因此正好等于 nDays */
+  const idxOf = (t) => clamp(Math.round((t - start) / DAY_MS), 0, nDays - 1);
+  const segs = [];
+  for (let i = 0; i < cps.length - 1; i++) {
+    const da = idxOf(cps[i].t);
+    const db = i === cps.length - 2 ? nDays : Math.max(da + 1, idxOf(cps[i + 1].t));
+    if (db <= da) continue;
+    segs.push({ da, db, base: ((cps[i + 1].w - cps[i].w) * KCAL_PER_KG) / (db - da) });
+  }
+
+  const base = new Array(nDays).fill(0);
+  segs.forEach((s) => { for (let k = s.da; k < s.db; k++) base[k] = s.base; });
+
+  /* 噪声在每段内强制零均值：既保留日间波动，又让区间端点严格落在控制点上 */
+  const noise = Array.from({ length: nDays }, () => gauss() * 340);
+  segs.forEach(({ da, db }) => {
+    let m = 0;
+    for (let k = da; k < db; k++) m += noise[k];
+    m /= db - da;
+    for (let k = da; k < db; k++) noise[k] -= m;
+  });
+
+  const days = [];
+  let trend = cps[0].w;      // 趋势体重：每日净缺口的积分
+  let water = 0;             // 水分基差：围绕趋势波动
+  let prevClose = cps[0].w;
+
+  for (let i = 0; i < nDays; i++) {
+    let netKcal = Math.round((base[i] + noise[i]) / 10) * 10;
+
+    /* 日常消耗：基础代谢 + 当天活动量 */
+    let burnKcal = Math.round(bmrBase() + neat() + clamp(260 + gauss() * 150, 60, 820));
+    let intakeKcal = Math.round(burnKcal + netKcal);
+
+    /* 摄入必须落在人类可实现的区间。若越界，用当日活动量吸收差异，
+       而不是截断净缺口 —— 否则缺口不达标的日子会日积月累变成几公斤的偏差。 */
+    if (intakeKcal < 1400 || intakeKcal > 3300) {
+      const fixed = Math.min(3300, Math.max(1400, intakeKcal));
+      const altBurn = fixed - netKcal;
+      if (altBurn >= 1400 && altBurn <= 3400) {
+        burnKcal = altBurn;
+        intakeKcal = fixed;
+      } else {
+        burnKcal = Math.round(clamp(altBurn, 1400, 3400));
+        intakeKcal = burnKcal + netKcal;
+        netKcal = intakeKcal - burnKcal;
+      }
+    }
+
+    /* 水分：均值回归的随机过程，这是体重噪音的来源，也是"基差"的成因 */
+    water = clamp(water * 0.86 + gauss() * 0.17, -0.95, 0.95);
+
+    trend += netKcal / KCAL_PER_KG;
+    const close = trend + water;
+    const open = prevClose;                           // 昨收即今开，隔夜水分变化体现为跳空
+    const body = Math.abs(close - open);
+    const high = Math.max(open, close) + Math.abs(gauss()) * 0.1 + body * 0.35;
+    const low = Math.min(open, close) - Math.abs(gauss()) * 0.1 - body * 0.35;
+
+    const pr = clamp(0.16 + gauss() * 0.045, 0.07, 0.32);   // 蛋白质供能比
+    const fr = clamp(0.33 + gauss() * 0.065, 0.16, 0.52);   // 脂肪供能比
+    const pro = Math.round((intakeKcal * pr) / 4);
+    const fat = Math.round((intakeKcal * fr) / 9);
+    const carb = Math.max(0, Math.round((intakeKcal - pro * 4 - fat * 9) / 4));
+    const fib = Math.round(clamp(12 + gauss() * 5.5, 1, 34));
+
+    days.push({
+      date: ymd(new Date(start.getTime() + i * DAY_MS)),
+      open: +open.toFixed(2), high: +high.toFixed(2), low: +low.toFixed(2), close: +close.toFixed(2),
+      net: netKcal, intake: intakeKcal, burn: burnKcal, vol: burnKcal,
+      pro, fat, carb, fib, live: false
+    });
+    prevClose = close;
+  }
+
+  /* 闭环校正：让累计净缺口精确等于控制点的总变化，消掉逐日取整的残差 */
+  const targetKcal = (state.weight - cps[0].w) * KCAL_PER_KG;
+  const actualKcal = days.reduce((s, d) => s + d.net, 0);
+  const fixDay = Math.round((targetKcal - actualKcal) / nDays);
+  if (fixDay !== 0) {
+    days.forEach((d) => { d.net += fixDay; d.intake += fixDay; });
+  }
+
+  /* 整体平移只用来吸收末日的水分基差，幅度很小；平移不改变任何涨跌关系 */
+  const diff = state.weight - days[days.length - 1].close;
+  if (Math.abs(diff) > 0.0001) {
+    days.forEach((d) => {
+      d.open = +(d.open + diff).toFixed(2);
+      d.high = +(d.high + diff).toFixed(2);
+      d.low = +(d.low + diff).toFixed(2);
+      d.close = +(d.close + diff).toFixed(2);
+    });
+  }
+  return days;
+}
+
+/* 历史序列可重建：体重是最敏感的参数，改了它整条曲线都要跟着重算 */
+let HISTORY = buildDays(1825);   // 5 年 ≈ 1825 个交易日
+function rebuildHistory() {
+  HISTORY = buildDays(1825);
+}
+
+/* ================= 交易日上下文 =================
+   整个 App 挂在「所选交易日」上：行情报价、K 线终点、大盘、买入/卖出写入哪一天、
+   复盘区间、营养汇总，全部跟着 state.selDate 走。
+
+   过去某天如果本地没有逐笔记录，就退化成「归档日」：只显示历史序列里的汇总数。
+   给它补记任意一笔之后，就以你的记录为准 —— 归档的演示数不再叠加，否则会重复计算。 */
+const todayStr = () => ymd(todayMid());
+const histRecord = (date) => HISTORY.find((d) => d.date === date) || null;
+const selIsToday = () => state.selDate === todayStr();
+const selDateObj = () => new Date(state.selDate + 'T00:00:00');
+
+function archivedDay() {
+  if (!state.selDate || selIsToday() || state.logs.length) return null;
+  return histRecord(state.selDate);
+}
+
+/* 所选交易日这一根 K 线 */
+function selBar() {
+  const a = archivedDay();
+  if (a) return a;
+  const prev = HISTORY.filter((d) => d.date < state.selDate).pop();
+  const o = prev ? prev.close : state.weight;
+  const c = o + kgDelta();
+  const g = dayNutrients();
+  return {
+    date: state.selDate,
+    open: +o.toFixed(2),
+    high: +Math.max(o, c).toFixed(2),
+    low: +Math.min(o, c).toFixed(2),
+    close: +c.toFixed(2),
+    net: net(), intake: intake(), burn: burn(), vol: burn(),
+    pro: +g.p.toFixed(1), fat: +g.f.toFixed(1), carb: +g.c.toFixed(1), fib: +g.fb.toFixed(1),
+    live: selIsToday()
+  };
+}
+
+/* 序列在所选交易日截止：看历史日期时，K 线右端就是那一天 */
+function ALL_DAYS() {
+  if (selIsToday()) return HISTORY.concat([selBar()]);
+  const past = HISTORY.filter((d) => d.date < state.selDate);
+  if (state.logs.length) return past.concat([selBar()]);
+  const rec = histRecord(state.selDate);
+  return rec ? past.concat([rec]) : past;
+}
+
+/* ---------- 周期聚合：五张图同源 ---------- */
+function bucketKey(dateStr, period) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (period === 'D') return dateStr;
+  if (period === 'W') {
+    const t = new Date(y, m - 1, d);
+    t.setDate(t.getDate() - ((t.getDay() + 6) % 7));   // 以周一为一周起点
+    return 'W' + ymd(t);
+  }
+  if (period === 'M') return `${y}-${pad2(m)}`;
+  if (period === 'Q') return `${y}Q${Math.floor((m - 1) / 3) + 1}`;
+  return String(y);
+}
+
+function aggregate(days, period) {
+  const out = [];
+  let cur = null, key = null;
+  for (const d of days) {
+    const k = bucketKey(d.date, period);
+    if (k !== key) {
+      if (cur) out.push(cur);
+      key = k;
+      cur = {
+        key: k, label: k, open: d.open, high: d.high, low: d.low, close: d.close,
+        net: 0, intake: 0, burn: 0, vol: 0, pro: 0, fat: 0, carb: 0, fib: 0,
+        from: d.date, to: d.date, n: 0, live: false
+      };
+    }
+    cur.high = Math.max(cur.high, d.high);
+    cur.low = Math.min(cur.low, d.low);
+    cur.close = d.close;
+    cur.net += d.net; cur.intake += d.intake; cur.burn += d.burn; cur.vol += d.vol;
+    cur.pro += d.pro; cur.fat += d.fat; cur.carb += d.carb; cur.fib += d.fib;
+    cur.to = d.date; cur.n += 1; cur.live = cur.live || !!d.live;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/* bars 是「中」档的根数。原来日线 60 根、周线 52 根，316px 的绘图区里一根只有
+   5px 宽，蜡烛和成交量糊成一片，看不出哪天是高开低走 —— 所以默认值砍一半，
+   再给疏/中/密三档让用户自己收放。 */
+const PERIOD_META = {
+  D: { name: '日', bars: 24, ma: 7 },
+  W: { name: '周', bars: 26, ma: 4 },
+  M: { name: '月', bars: 18, ma: 3 },
+  Q: { name: '季', bars: 12, ma: 2 },
+  Y: { name: '年', bars: 5, ma: 0 }
+};
+
+/* 疏 / 中 / 密：乘在默认根数上。日线对应 16 / 24 / 37 根，
+   16 根时一根宽约 19px，蜡烛和量柱都能看清影线。 */
+const K_ZOOM = [
+  { k: 0.65, name: '疏' },
+  { k: 1, name: '中' },
+  { k: 1.55, name: '密' }
+];
+
+function periodBars(period) {
+  const meta = PERIOD_META[period] || PERIOD_META.D;
+  const z = K_ZOOM[state.kZoom] || K_ZOOM[1];
+  const all = aggregate(ALL_DAYS(), period);
+  const n = Math.max(4, Math.round(meta.bars * z.k));
+  return all.slice(Math.max(0, all.length - n));
+}
+
+/* ---------------- 营养维度 ---------------- */
+
+/* 三大营养素目标：
+   蛋白质 1.8g / kg 体重（减脂期保肌），脂肪占预算 25%，碳水用剩余热量补齐，纤维 25g */
+function nutritionTargets() {
+  const kcal = intakeBudget();
+  const p = Math.round(state.weight * 1.8);
+  const f = Math.round((kcal * 0.25) / 9);
+  const c = Math.max(0, Math.round((kcal - p * 4 - f * 9) / 4));
+  return { kcal, p, f, c, fb: 25 };
+}
+
+const round1 = (v) => Math.round(v * 10) / 10;
+
+/* 单份标的的营养（每100g 值 × 克重） */
+function nutrientsOf(s) {
+  const k = (Number(s.grams) || 0) / 100;
+  return {
+    kcal: caloriesOf(s),
+    p: round1((Number(s.p) || 0) * k),
+    f: round1((Number(s.f) || 0) * k),
+    c: round1((Number(s.c) || 0) * k),
+    fb: round1((Number(s.fb) || 0) * k)
+  };
+}
+
+/* 所选交易日的营养汇总（归档日取历史序列里的宏量营养） */
+function dayNutrients() {
+  const a = archivedDay();
+  if (a) return { kcal: a.intake, p: a.pro, f: a.fat, c: a.carb, fb: a.fib };
+  return state.logs
+    .filter((l) => l.type === 'food')
+    .reduce(
+      (acc, l) => {
+        acc.kcal += Number(l.kcal) || 0;
+        acc.p += Number(l.p) || 0;
+        acc.f += Number(l.f) || 0;
+        acc.c += Number(l.c) || 0;
+        acc.fb += Number(l.fb) || 0;
+        return acc;
+      },
+      { kcal: 0, p: 0, f: 0, c: 0, fb: 0 }
+    );
+}
+
+/* 老数据迁移：从食物库补齐缺失的营养字段，避免历史记录断档 */
+function fillNutrition(shop) {
+  if (Number(shop.p) > 0) return shop;
+  const base = FOOD_DB.find((f) => f.n === shop.food) || FOOD_DB.find((f) => f.n === shop.dish);
+  if (!base) return shop;
+  return { ...shop, p: base.p, f: base.f, c: base.c, fb: base.fb, kcal: base.k };
+}
+
+/* ---------- 通用 K 线渲染：任意周期同一套画法 ---------- */
+const UP = '#3DD68C', DOWN = '#E5484D';
+
+/* "近 24 个交易日"不够直观，直接说是哪段日子 */
+function periodRangeText(period, bars) {
+  if (!bars.length) return '';
+  const a = bars[0], b = bars[bars.length - 1];
+  if (period === 'D') return `${a.from.slice(5).replace('-', '/')}–${b.from.slice(5).replace('-', '/')}`;
+  if (period === 'W' || period === 'M') return `${a.from.slice(2, 7).replace('-', '/')}–${b.to.slice(2, 7).replace('-', '/')}`;
+  return `${a.key}–${b.key}`;
+}
+
+function barLabel(bar, period) {
+  if (period === 'D' || period === 'W') return bar.from.slice(5).replace('-', '/');
+  if (period === 'M') return bar.from.slice(2, 7).replace('-', '/');
+  if (period === 'Q') return bar.key.slice(2);
+  return bar.key;
+}
+
+let __KGEO = null;
+
+function renderKline(bars, period) {
+  const n = bars.length;
+  if (!n) return '<div class="empty">暂无行情</div>';
+
+  const W = 372, H = 216;
+  const PADL = 44, PADR = 12, PTOP = 14, PBOT = 156, VTOP = 168, VBOT = 196;
+  const XW = W - PADL - PADR;
+  const step = XW / n;
+  const cw = Math.max(2.6, Math.min(step * 0.7, 24));
+
+  const lo0 = Math.min(...bars.map((b) => b.low));
+  const hi0 = Math.max(...bars.map((b) => b.high));
+  /* 目标位离得太远就不强行拉进纵轴，否则近期走势会被压扁 */
+  const span0 = hi0 - lo0 || 1;
+  const lo = state.targetWeight < lo0 && lo0 - state.targetWeight <= span0 * 0.14 ? state.targetWeight : lo0;
+  const hi = state.targetWeight > hi0 && state.targetWeight - hi0 <= span0 * 0.14 ? state.targetWeight : hi0;
+  const span = hi - lo || 1;
+  const yMin = lo - span * 0.08, yMax = hi + span * 0.08;
+  const y = (v) => PBOT - ((v - yMin) / (yMax - yMin)) * (PBOT - PTOP);
+  const maxVol = Math.max(...bars.map((b) => b.vol || 0), 1);
+
+  let s = '';
+
+  /* 横向网格 + 右侧价格刻度 */
+  for (let g = 0; g < 5; g++) {
+    const v = yMin + ((yMax - yMin) * g) / 4;
+    const yy = y(v).toFixed(1);
+    s += `<line x1="${PADL}" y1="${yy}" x2="${W - PADR}" y2="${yy}" stroke="#1C232B" stroke-width="1"/>`;
+    s += `<text x="${PADL - 6}" y="${(+yy + 3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="#5C6672" font-family="ui-monospace,monospace">${v.toFixed(2)}</text>`;
+  }
+
+  /* 目标位 */
+  if (state.targetWeight > yMin && state.targetWeight < yMax) {
+    const ty = y(state.targetWeight).toFixed(1);
+    s += `<line x1="${PADL}" y1="${ty}" x2="${W - PADR}" y2="${ty}" stroke="${DOWN}" stroke-width="0.9" stroke-dasharray="4 4" opacity="0.4"/>`;
+    s += `<text x="${W - PADR}" y="${+ty - 4}" text-anchor="end" font-size="8" fill="${DOWN}" opacity="0.75" font-family="ui-monospace,monospace">目标 ${state.targetWeight.toFixed(2)}</text>`;
+  }
+
+  /* 开仓标记 */
+  const openIdx = bars.findIndex((b) => b.from <= OPEN_DAY && b.to >= OPEN_DAY);
+  if (openIdx >= 0) {
+    const ox = (PADL + step * openIdx + step / 2).toFixed(1);
+    s += `<line x1="${ox}" y1="${PTOP}" x2="${ox}" y2="${VBOT}" stroke="#D29922" stroke-width="1" stroke-dasharray="2 3" opacity="0.35"/>`;
+    s += `<text x="${ox}" y="${PTOP - 3}" text-anchor="middle" font-size="8" fill="#D29922" opacity="0.85" font-family="ui-monospace,monospace">开仓</text>`;
+  }
+
+  /* 蜡烛 + 成交量 */
+  for (let i = 0; i < n; i++) {
+    const b = bars[i];
+    const cx = PADL + step * i + step / 2;
+    const up = b.close >= b.open;
+    const col = up ? UP : DOWN;
+    const op = b.live ? 0.62 : 1;
+    s += `<line x1="${cx.toFixed(1)}" y1="${y(b.high).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${y(b.low).toFixed(1)}" stroke="${col}" stroke-width="1" opacity="${op}"/>`;
+    const top = y(Math.max(b.open, b.close));
+    const bot = y(Math.min(b.open, b.close));
+    s += `<rect x="${(cx - cw / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${cw.toFixed(1)}" height="${Math.max(bot - top, 1.3).toFixed(1)}" rx="0.8" fill="${col}" opacity="${op}"${b.live ? ` stroke="#E8EDF2" stroke-width="0.6" stroke-dasharray="1.6 1.6"` : ''}/>`;
+    const vh = ((b.vol || 0) / maxVol) * (VBOT - VTOP);
+    s += `<rect x="${(cx - cw / 2).toFixed(1)}" y="${(VBOT - vh).toFixed(1)}" width="${cw.toFixed(1)}" height="${Math.max(vh, 0.8).toFixed(1)}" rx="0.8" fill="${col}" opacity="${b.live ? 0.18 : 0.26}"/>`;
+  }
+
+  /* 均线：周期越长，均线越短 */
+  const maN = (PERIOD_META[period] || PERIOD_META.D).ma;
+  if (maN > 0 && n > maN) {
+    let pts = '';
+    let lastMA = 0;
+    for (let i = maN - 1; i < n; i++) {
+      let sum = 0;
+      for (let k = i - maN + 1; k <= i; k++) sum += bars[k].close;
+      lastMA = sum / maN;
+      pts += `${(PADL + step * i + step / 2).toFixed(1)},${y(lastMA).toFixed(1)} `;
+    }
+    s += `<polyline points="${pts}" fill="none" stroke="#D29922" stroke-width="1.3" stroke-linejoin="round" opacity="0.8"/>`;
+    s += `<text x="${W - PADR}" y="${PTOP + 9}" text-anchor="end" font-size="8" fill="#D29922" opacity="0.85" font-family="ui-monospace,monospace">MA${maN} ${lastMA.toFixed(2)}</text>`;
+  }
+
+  /* X 轴时间标签：固定取 4 个，首尾必有 */
+  const ticks = n <= 4 ? [...Array(n).keys()] : [0, Math.round((n - 1) * 0.34), Math.round((n - 1) * 0.67), n - 1];
+  ticks.forEach((i) => {
+    const cx = PADL + step * i + step / 2;
+    s += `<text x="${cx.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="8.5" fill="#5C6672" font-family="ui-monospace,monospace">${barLabel(bars[i], period)}</text>`;
+  });
+
+  /* 十字线（默认隐藏，由交互点亮） */
+  s += `<g id="kx" opacity="0"><line id="kx-line" x1="0" y1="${PTOP}" x2="0" y2="${VBOT}" stroke="#8B949E" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/><circle id="kx-dot" cx="0" cy="0" r="2.8" fill="#E8EDF2"/></g>`;
+
+  __KGEO = { PADL, step, n, W, H, bars, period, y, PTOP, VBOT };
+
+  return `
+    <div class="k-wrap" id="kwrap">
+      <svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${s}</svg>
+      <div class="k-tip" id="ktip"></div>
+    </div>`;
+}
+
+function bindKline() {
+  const wrap = document.getElementById('kwrap');
+  if (!wrap || !__KGEO) return;
+  const tip = document.getElementById('ktip');
+  const g = document.getElementById('kx');
+  const line = document.getElementById('kx-line');
+  const dot = document.getElementById('kx-dot');
+  if (!tip || !g) return;
+
+  const show = (ev) => {
+    const r = wrap.getBoundingClientRect();
+    const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+    const vx = (px / r.width) * __KGEO.W;
+    let i = Math.round((vx - __KGEO.PADL - __KGEO.step / 2) / __KGEO.step);
+    i = Math.max(0, Math.min(__KGEO.n - 1, i));
+    const b = __KGEO.bars[i];
+    const cx = (__KGEO.PADL + __KGEO.step * i + __KGEO.step / 2).toFixed(1);
+
+    g.style.opacity = 1;
+    line.setAttribute('x1', cx);
+    line.setAttribute('x2', cx);
+    dot.setAttribute('cx', cx);
+    dot.setAttribute('cy', __KGEO.y(b.close).toFixed(1));
+
+    const chg = b.close - b.open;
+    const pct = b.open ? (chg / b.open) * 100 : 0;
+    const dlg = b.from === b.to ? b.from : `${b.from} → ${b.to}`;
+    tip.innerHTML = `
+      <div class="kt-date">${dlg}${b.live ? ' · 未收盘' : ''}</div>
+      <div class="kt-price ${chg >= 0 ? 'up' : 'down'}">${b.close.toFixed(2)}<span>${chg >= 0 ? '+' : ''}${chg.toFixed(2)} · ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</span></div>
+      <div class="kt-row"><span>净缺口</span><b class="${b.net > 0 ? 'up' : 'down'}">${b.net > 0 ? '+' : ''}${b.net} kcal</b></div>
+      <div class="kt-row"><span>摄入 / 消耗</span><b>${Math.round(b.intake)} / ${Math.round(b.burn)}</b></div>`;
+    tip.style.opacity = 1;
+    const left = Math.min(Math.max(px - 58, 4), r.width - 124);
+    tip.style.left = left + 'px';
+    tip.style.top = '6px';
+  };
+
+  const hide = () => { g.style.opacity = 0; tip.style.opacity = 0; };
+  wrap.addEventListener('pointerdown', show);
+  wrap.addEventListener('pointermove', (e) => { if (e.pointerType === 'touch' || e.buttons) show(e); });
+  wrap.addEventListener('pointerleave', hide);
+  wrap.addEventListener('pointercancel', hide);
+}
+
+/* 大盘方块的补间：从上一帧的几何插值到这一帧，460ms 三次缓出。
+   为什么不用 CSS transition / SMIL：整页重绘会把 SVG 元素整个换掉，
+   新元素没有"上一帧"可过渡；SMIL 又挂在文档时间轴上，begin=0s 时早就跑完了。
+   所以自己按 data-from 记下的起点做 rAF 插值，重绘多少次都不受影响。 */
+function bindBoardAnim() {
+  if (typeof requestAnimationFrame !== 'function') return;
+  const list = Array.prototype.slice.call(
+    document.querySelectorAll('.bd-canvas rect[data-from]')
+  );
+  if (!list.length) return;
+
+  const items = list.map((el) => {
+    const f = String(el.getAttribute('data-from')).split(',').map(Number);
+    return {
+      el,
+      from: { x: f[0], y: f[1], w: f[2], h: f[3] },
+      to: {
+        x: Number(el.getAttribute('x')),
+        y: Number(el.getAttribute('y')),
+        w: Number(el.getAttribute('width')),
+        h: Number(el.getAttribute('height'))
+      }
+    };
+  });
+
+  const DUR = 460;
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+  /* t0 用 -1 当哨兵：performance.now() 完全可能从 0 起，用 falsy 判断会每帧重置 */
+  let t0 = -1;
+
+  const frame = (now) => {
+    if (t0 < 0) t0 = now;
+    const k = Math.min(1, (now - t0) / DUR);
+    const e = ease(k);
+    for (const it of items) {
+      const f = it.from, t = it.to;
+      it.el.setAttribute('x', (f.x + (t.x - f.x) * e).toFixed(2));
+      it.el.setAttribute('y', (f.y + (t.y - f.y) * e).toFixed(2));
+      it.el.setAttribute('width', Math.max(0.5, f.w + (t.w - f.w) * e).toFixed(2));
+      it.el.setAttribute('height', Math.max(0.5, f.h + (t.h - f.h) * e).toFixed(2));
+    }
+    if (k < 1) requestAnimationFrame(frame);
+    else items.forEach((it) => it.el.removeAttribute('data-from'));
+  };
+  requestAnimationFrame(frame);
+}
+
+
+/* 自开仓以来累计净缺口 → 理论体重；与实际报价的差就是"水分基差" */
+function basisKg() {
+  const upto = state.selDate;
+  const useLogs = selIsToday() || state.logs.length > 0;
+  const since = HISTORY
+    .filter((d) => d.date >= OPEN_DAY && (useLogs ? d.date < upto : d.date <= upto))
+    .reduce((s, d) => s + d.net, 0) + (useLogs ? net() : 0);
+  return liveWeight() - (OPEN_PRICE + since / KCAL_PER_KG);
+}
+
+function liveStreak() {
+  const ds = ALL_DAYS();
+  let k = 0;
+  for (let i = ds.length - 1; i >= 0; i--) {
+    if (ds[i].net < 0) k++;
+    else break;
+  }
+  return k;
+}
+
+/* ================= 体重波动曲线 =================
+   这张图要回答的不是「我瘦了多少」，而是「我看到的数字到底是不是真的」。
+
+   日体重 = 趋势（缺口的积分）+ 噪音（水、盐、糖原、肠道内容物）
+   噪音量级通常是真实趋势的 10~20 倍，所以图里同时画四条：
+
+     细灰线  每日秤上的数字          → 噪音，别当真
+     金 线   7 日均线                → 把噪音摊平后的趋势
+     绿虚线  理论体重                → 按累计缺口折算，完全不受水分影响
+     阴影带  均线 ± 1σ（残差标准差） → 正常波动区间，落在里面都算正常
+
+   判定标准写在下面：真实趋势斜率 / 日噪音 σ = 信号噪音比。
+   这个比值小于 0.1 时，任何单日读数都不该被当成趋势。 */
+
+function volWindow(nDays) {
+  const all = ALL_DAYS();
+  return all.slice(Math.max(0, all.length - nDays));
+}
+
+function volStats(days) {
+  const n = days.length;
+  if (n < 8) return null;
+
+  /* 7 日均线 */
+  const ma = days.map((_, i) => {
+    const from = Math.max(0, i - 6);
+    let sum = 0;
+    for (let k = from; k <= i; k++) sum += days[k].close;
+    return sum / (i - from + 1);
+  });
+
+  /* 残差 = 当日收盘 − 均线。它的标准差就是「日常噪音」的真实量级。
+     这是这张图的关键统计量，比体重本身的方差有意义得多。 */
+  const resid = days.map((d, i) => d.close - ma[i]);
+  const meanR = resid.reduce((s, v) => s + v, 0) / n;
+  const sd = Math.sqrt(resid.reduce((s, v) => s + (v - meanR) ** 2, 0) / n);
+
+  /* 真实趋势：对收盘价做最小二乘。噪音零均值，所以斜率不受其影响 */
+  const xm = (n - 1) / 2;
+  const ym = days.reduce((s, d) => s + d.close, 0) / n;
+  let num = 0, den = 0;
+  days.forEach((d, i) => { num += (i - xm) * (d.close - ym); den += (i - xm) ** 2; });
+  const slopeDay = den ? num / den : 0;
+
+  /* 理论体重：从窗口首日收盘出发，按累计净缺口折算 */
+  let acc = 0;
+  const theory = days.map((d, i) => {
+    if (i > 0) acc += d.net;
+    return days[0].close + acc / KCAL_PER_KG;
+  });
+
+  const diff = days.map((d, i) => (i ? d.close - days[i - 1].close : 0)).slice(1);
+  const inBand = days.filter((d, i) => Math.abs(resid[i] - meanR) <= sd).length;
+
+  return {
+    n, ma, resid, sd, meanR, slopeDay, theory,
+    maxUp: Math.max(...diff), maxDown: Math.min(...diff),
+    inBandPct: (inBand / n) * 100,
+    weekly: slopeDay * 7,
+    snr: sd > 0 ? Math.abs(slopeDay) / sd : 0,
+    maFirst: ma[0], maLast: ma[n - 1],
+    closeFirst: days[0].close, closeLast: days[n - 1].close,
+    theoryLast: theory[n - 1]
+  };
+}
+
+function renderVolCurve(days, st, range) {
+  const W = 372, H = 196;
+  const PADL = 46, PADR = 14, PTOP = 12, PBOT = 168;
+  const XW = W - PADL - PADR;
+  const n = days.length;
+  const x = (i) => PADL + (XW * i) / Math.max(1, n - 1);
+
+  const vals = [];
+  days.forEach((d, i) => vals.push(d.close, st.ma[i] - st.sd, st.ma[i] + st.sd, st.theory[i]));
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  const sp = hi - lo || 1;
+  lo -= sp * 0.08; hi += sp * 0.08;
+  const y = (v) => PBOT - ((v - lo) / (hi - lo)) * (PBOT - PTOP);
+
+  let s = '';
+
+  /* 横向网格 */
+  for (let g = 0; g < 4; g++) {
+    const v = lo + ((hi - lo) * g) / 3;
+    const yy = y(v).toFixed(1);
+    s += `<line x1="${PADL}" y1="${yy}" x2="${W - PADR}" y2="${yy}" stroke="#1C232B" stroke-width="1"/>`;
+    s += `<text x="${PADL - 6}" y="${(+yy + 3).toFixed(1)}" text-anchor="end" font-size="8.5" fill="#5C6672" font-family="ui-monospace,monospace">${v.toFixed(2)}</text>`;
+  }
+
+  /* 波动带：均线 ± 1σ */
+  if (st.sd > 0) {
+    const up = st.ma.map((v, i) => `${x(i).toFixed(1)},${y(v + st.sd).toFixed(1)}`);
+    const dn = st.ma.map((v, i) => `${x(i).toFixed(1)},${y(v - st.sd).toFixed(1)}`).reverse();
+    s += `<polygon points="${up.join(' ')} ${dn.join(' ')}" fill="#5B9BD5" opacity="0.1"/>`;
+    s += `<polyline points="${up.join(' ')}" fill="none" stroke="#5B9BD5" stroke-width="0.6" opacity="0.25" stroke-dasharray="2 3"/>`;
+    s += `<polyline points="${dn.join(' ')}" fill="none" stroke="#5B9BD5" stroke-width="0.6" opacity="0.25" stroke-dasharray="2 3"/>`;
+  }
+
+  /* 理论体重线（按缺口折算，不受水分影响） */
+  s += `<polyline points="${st.theory.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="#3DD68C" stroke-width="1.3" stroke-dasharray="6 3" opacity="0.85"/>`;
+
+  /* 日收盘：点少的时候连点一起画，点多的时候只留线 */
+  s += `<polyline points="${days.map((d, i) => `${x(i).toFixed(1)},${y(d.close).toFixed(1)}`).join(' ')}" fill="none" stroke="#8A94A0" stroke-width="0.9" opacity="0.62"/>`;
+  if (n <= 100) {
+    days.forEach((d, i) => {
+      s += `<circle cx="${x(i).toFixed(1)}" cy="${y(d.close).toFixed(1)}" r="1.3" fill="#A8B2BE" opacity="0.75"/>`;
+    });
+  }
+
+  /* 7 日均线：这条才是趋势 */
+  s += `<polyline points="${st.ma.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}" fill="none" stroke="#D29922" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>`;
+
+  /* 最新一点加重 */
+  s += `<circle cx="${x(n - 1).toFixed(1)}" cy="${y(st.maLast).toFixed(1)}" r="2.6" fill="#D29922"/>`;
+
+  /* 两端日期：跨年的窗口要带年份，否则 10/27 → 10/26 看不出是一年 */
+  const fmtX = (d) => (range >= 180 ? d.slice(2, 7).replace('-', '/') : d.slice(5).replace('-', '/'));
+  s += `<text x="${PADL}" y="${PBOT + 14}" font-size="8" fill="#5C6672" font-family="ui-monospace,monospace">${fmtX(days[0].date)}</text>`;
+  s += `<text x="${W - PADR}" y="${PBOT + 14}" text-anchor="end" font-size="8" fill="#5C6672" font-family="ui-monospace,monospace">${fmtX(days[n - 1].date)}</text>`;
+  s += `<text x="${W - PADR}" y="${PTOP - 2}" text-anchor="end" font-size="8" fill="#D29922" opacity="0.8" font-family="ui-monospace,monospace">MA7 ${st.maLast.toFixed(2)}</text>`;
+
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${s}</svg>`;
+}
+
+/* 波动卡片 */
+function volCard() {
+  const range = state.volRange || 30;
+  const days = volWindow(range);
+  const st = volStats(days);
+  if (!st) return '';
+
+  const RANGES = [[30, '30 天'], [90, '90 天'], [365, '1 年']];
+  const tabs = RANGES.map(
+    ([v, t]) => `<button class="${range === v ? 'on' : ''}" data-vol="${v}">${t}</button>`
+  ).join('');
+
+  const trendCls = st.weekly >= 0 ? 'up' : 'down';
+  const noiseX = st.snr > 0 ? Math.round(1 / st.snr) : 0;
+  const realCls = st.slopeDay < 0 ? 'down' : 'up';
+
+  return `
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">体重波动</span>
+        <div class="vol-tabs">${tabs}</div>
+      </div>
+
+      <div class="vol-wrap">${renderVolCurve(days, st, range)}</div>
+
+      <div class="vol-legend">
+        <span><i class="vol-line" style="border-top-color:#8A94A0"></i>每日称重</span>
+        <span><i class="vol-line" style="border-top-color:#D29922"></i>7 日均线</span>
+        <span><i class="vol-line" style="border-top-color:#3DD68C;border-top-style:dashed"></i>理论体重</span>
+        <span><i class="vol-band" style="background:rgba(91,155,213,.3)"></i>正常波动带</span>
+      </div>
+
+      <div class="vol-grid">
+        <div class="vol-cell">
+          <span>日波动 σ</span>
+          <b>±${st.sd.toFixed(2)}<em>kg</em></b>
+        </div>
+        <div class="vol-cell">
+          <span>真实趋势</span>
+          <b class="${realCls}">${signTxt(st.weekly, 2)}<em>kg/周</em></b>
+        </div>
+        <div class="vol-cell">
+          <span>最大单日涨 / 跌</span>
+          <b>+${st.maxUp.toFixed(2)} / ${st.maxDown.toFixed(2)}</b>
+        </div>
+        <div class="vol-cell">
+          <span>信号噪音比</span>
+          <b>${st.snr > 0 ? `1 : ${noiseX}` : '—'}</b>
+        </div>
+      </div>
+
+      <div class="vol-note">
+        ${
+          st.snr < 0.12
+            ? `这 ${range} 天里，真实趋势每周只有 ${Math.abs(st.weekly).toFixed(2)} kg，而单日噪音有 ±${st.sd.toFixed(2)} kg —— <b>噪音是信号的约 ${noiseX} 倍</b>。这就是为什么连吃三天干净饭、秤上却没动是正常的，也是为什么单看某一天毫无意义。`
+            : `这 ${range} 天趋势明确（每周 ${signTxt(st.weekly, 2)} kg），单日噪音 ±${st.sd.toFixed(2)} kg 没有淹没它。`}
+        ${st.inBandPct.toFixed(0)}% 的天数落在波动带内${st.inBandPct > 55 && st.inBandPct < 80 ? '（符合 ±1σ 的理论期望 68%，说明这条带是可信的）' : ''}。
+        理论体重与实际相差 ${signTxt(st.maLast - st.theoryLast, 2)} kg，这部分就是还没兑现的基差。
+      </div>
+    </div>`;
+}
+
+/* ================= 热量盈余卡片 ================= */
+function budgetCard() {
+  const b = budgetInfo();
+  const inK = intake();
+  const sur = inK - b.kcal;
+  const pctOf = (v) => (b.kcal > 0 ? Math.min(100, (v / b.kcal) * 100) : 0);
+
+  /* 构成条：消耗与摄入两根，共用同一比例尺，预算线贯穿两根。
+     原来把摄入和消耗塞进同一条，视觉上会误读成「加起来」，所以拆成两行。 */
+  const scaleMax = Math.max(b.kcal, inK, b.bmr + b.neat + b.exercise) * 1.02;
+  const w = (v) => Math.max(0, (v / scaleMax) * 100).toFixed(2);
+  const markAt = (b.kcal / scaleMax) * 100;
+
+  const modeTxt = b.mode === 'auto' ? '按身体数据测算' : '手动指定';
+  const flowTxt =
+    b.mode === 'auto'
+      ? `基础代谢 ${b.bmr} + 日常活动 ${b.neat} + 运动 ${b.exercise} − 缺口 ${b.deficit}`
+      : '固定预算，不随今日运动变化';
+
+  return `
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">今日热量</span>
+        <span class="card-note" data-view="profile" data-pftab="set" style="cursor:pointer;color:var(--gold)">${modeTxt} · 改设置 ›</span>
+      </div>
+
+      <div class="surplus-row">
+        <span class="surplus-num ${sur > 0 ? 'up' : sur < 0 ? 'down' : 'flat'}">${sur > 0 ? '+' : ''}${sur}</span>
+        <span style="font-size:11px;color:var(--muted);line-height:1.5">
+          kcal ${sur > 0 ? '盈余<br>超出预算' : '剩余<br>还没吃满'}<br>
+          <span style="color:var(--dim);font-size:10px">预算 ${b.kcal} / 已吃 ${inK}</span>
+        </span>
+      </div>
+
+      <div class="bud-two">
+        <span class="bud-tag">消耗</span>
+        <div class="bud-line">
+          <i style="width:${w(b.bmr)}%;background:rgba(229,72,77,.3)"></i>
+          <i style="width:${w(b.neat)}%;background:rgba(229,72,77,.52)"></i>
+          <i style="width:${w(b.exercise)}%;background:rgba(229,72,77,.78)"></i>
+          <span class="bud-mark" style="left:${markAt}%"></span>
+        </div>
+        <span class="bud-tag">摄入</span>
+        <div class="bud-line">
+          <i style="width:${w(inK)}%;background:${sur > 0 ? 'rgba(61,214,140,.8)' : 'rgba(61,214,140,.45)'}"></i>
+          <span class="bud-mark" style="left:${markAt}%"></span>
+        </div>
+      </div>
+
+      <div class="bud-scale">
+        <span>0</span>
+        <span>${Math.round(scaleMax)} kcal</span>
+      </div>
+
+      <div class="bud-legend">
+        <span><i class="dot" style="background:rgba(229,72,77,.35)"></i>基础代谢 <b>${b.bmr}</b></span>
+        <span><i class="dot" style="background:rgba(229,72,77,.58)"></i>日常活动 <b>${b.neat}</b></span>
+        <span><i class="dot" style="background:rgba(229,72,77,.85)"></i>运动 <b>${b.exercise}</b></span>
+        <span><i class="dot" style="background:rgba(61,214,140,.7)"></i>已吃 <b>${inK}</b></span>
+        <span style="margin-left:auto;color:var(--dim)">竖线 = 预算 ${b.kcal}</span>
+      </div>
+
+      <div class="vol-note" style="margin-top:11px">
+        ${flowTxt} = 预算 <b>${b.kcal}</b> kcal。<br>
+        ${
+          b.capped
+            ? `⚠️ 按公式算出来只有 ${b.raw} kcal，低于安全下限 ${b.floor}，已自动抬到 ${b.kcal}。再往下压，掉的就不只是脂肪了。`
+            : `已吃 ${inK}，${sur > 0 ? `超了 ${sur} kcal，相当于多吃了 ${(sur / 7700 * 1000).toFixed(0)} g 脂肪` : `还能吃 ${Math.abs(sur)} kcal`}。<br>
+        注意「盈余」和「净缺口」不是一回事：盈余是相对预算的偏离，净缺口是摄入减真实消耗，换算成盈亏是 ${net() > 0 ? `（今天 ${profitTxt(net())}，方向反了）` : `（今天 ${profitTxt(net())}，缺口成立）`}。`
+        }
+      </div>
+    </div>`;
+}
+
+/* ================= 今日大盘：方块面积 ∝ 热量 =================
+   把当天的能量流画成一张 treemap：上区是卖盘（消耗），下区是买盘（摄入），
+   两区高度比 = 两边热量比，所以整张图本身就是一个天平 ——
+   哪边占据的面积更大，哪边就是今天的主导力量。中间那条就是净额。
+
+   为什么不用横向进度条：进度条共享一条时间轴，只能表达"相对最大值"，
+   而面积的直觉是"总量的几分之一"，正好对应热量这件事。 */
+
+/* 递归二分切分：每次沿长边切一刀，让两半面积比 = 价值和比。
+   切分方向选长边，能让块逐渐趋近正方形 —— 这是 treemap 可读性的关键。 */
+function squarify(items, x, y, w, h, out = []) {
+  const total = items.reduce((s, i) => s + i.v, 0);
+  if (!items.length || total <= 0 || w <= 0 || h <= 0) return out;
+  if (items.length === 1) {
+    out.push({ label: items[0].label, v: items[0].v, x, y, w, h });
+    return out;
+  }
+  let acc = 0;
+  let cut = 1;
+  for (let i = 0; i < items.length - 1; i++) {
+    acc += items[i].v;
+    cut = i + 1;
+    if (acc >= total / 2) break;
+  }
+  const g1 = items.slice(0, cut);
+  const g2 = items.slice(cut);
+  const r = acc / total;
+  if (w >= h) {
+    squarify(g1, x, y, w * r, h, out);
+    squarify(g2, x + w * r, y, w - w * r, h, out);
+  } else {
+    squarify(g1, x, y, w, h * r, out);
+    squarify(g2, x, y + h * r, w, h - h * r, out);
+  }
+  return out;
+}
+
+const MONO_F = 'ui-monospace,SFMono-Regular,Menlo,monospace';
+
+/* 按实际字宽估算再截断：中文约等于 1 个字号宽，ASCII 约 0.56 个。
+   统一按字符数截断会误伤中文（"日常活动 ×1.3" 会被截成"日常活动 …"）。 */
+function fitText(str, maxW, fs) {
+  const wide = (s) => [...s].reduce((a, c) => a + (/[\x00-\xff]/.test(c) ? fs * 0.56 : fs), 0);
+  if (wide(str) <= maxW) return str;
+  let out = '';
+  for (const ch of str) {
+    if (wide(out + ch + '…') > maxW) break;
+    out += ch;
+  }
+  return out + '…';
+}
+
+/* 上一帧每块的几何。买入一笔之后，那一块要「从昨天的尺寸长到今天」，
+   而不是整页刷一下就换个数字 —— 补间的起点就存在这张表里。
+   键带上序号，因为同一天可能记了两笔「慢跑」。 */
+let __BMEMO = { ctx: '', buy: {}, sell: {} };
+/* ctx 变了（换交易日 / 换今日-月度口径）就不补间：那不是同一张图的变化 */
+let __BANIM = false;
+
+/* 一块区域内的挤压方块（返回 rect + text 片段，便于两张拼成一整张画布）。
+   面积严格 ∝ 热量，块间只留 2.2px 缝，文字压在左上角 —— 这三条合起来才有
+   "被挤在一起"的物理感：占比大的块颜色更沉、更实，占比小的块缩成一条，
+   连数字都放不下时就是一块纯色，被大的吃掉。
+
+   每块包在一个 <g data-view> 里：买盘点进「买入」、卖盘点进「卖出」，
+   在那儿增删一笔，回来这块就会长大或缩小 —— 方块和账本是同一份数据。 */
+function blockMarkup(items, ox, oy, W, H, red, sign) {
+  if (!items.length || H <= 0 || W <= 0) return '';
+  const GAP = 2.2;
+  const hue = red ? 152 : 357;
+  const sat = red ? 71 : 77;
+  const baseL = red ? 40 : 49;
+  const spanL = red ? 13 : 8;
+  const total = items.reduce((s, i) => s + i.v, 0);
+  if (total <= 0) return '';
+  const blocks = squarify(items.slice().sort((a, b) => b.v - a.v), 0, 0, W, H);
+  const side = red ? 'buy' : 'sell';
+  const memo = __BMEMO[side];
+  const seen = Object.create(null);
+
+  let s = '';
+  for (const b of blocks) {
+    if (b.v <= 0) continue;
+    const x = ox + b.x + GAP / 2, y = oy + b.y + GAP / 2;
+    const w = b.w - GAP, h = b.h - GAP;
+    if (w < 1 || h < 1) continue;
+
+    const nm0 = String(b.label);
+    seen[nm0] = (seen[nm0] || 0) + 1;
+    const key = nm0 + '#' + seen[nm0];
+    const prev = memo[key];
+
+    /* 三种情况：老块挪了位置/变了大小 → 从旧几何插值；
+       新块 → 从自己的中心长出来；没变 → 不动，一个 data-from 都不写。 */
+    let from = null, isNew = false;
+    if (__BANIM) {
+      if (prev) {
+        if (
+          Math.abs(prev.x - x) > 0.35 || Math.abs(prev.y - y) > 0.35 ||
+          Math.abs(prev.w - w) > 0.35 || Math.abs(prev.h - h) > 0.35
+        ) from = prev;
+      } else {
+        isNew = true;
+        from = { x: x + w / 2 - 0.6, y: y + h / 2 - 0.6, w: 1.2, h: 1.2 };
+      }
+    }
+    memo[key] = { x, y, w, h, v: b.v };
+
+    const share = b.v / total;
+    /* 份额越大 → 亮度越低 → 色块越"重"；小块越浅，像被压薄 */
+    const lum = baseL + spanL * (1 - Math.pow(Math.min(1, share), 0.5));
+    const dataFrom = from
+      ? ` data-from="${from.x.toFixed(2)},${from.y.toFixed(2)},${from.w.toFixed(2)},${from.h.toFixed(2)}"`
+      : '';
+
+    s += `<g class="bd-blk${isNew ? ' bd-flash' : ''}" data-view="${red ? 'nearby' : 'log'}">`;
+    s += `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="hsl(${hue} ${sat}% ${lum.toFixed(1)}%)"${dataFrom}/>`;
+
+    const iw = w - 14;
+    const ih = h - 10;
+    const nx = x + 8;
+    /* 三级信息密度：大块名称+数值+单位，中块名称+数值，小块只剩数值 */
+    if (iw >= 42 && ih >= 30) {
+      const fs = Math.min(13.5, Math.max(10.5, h / 9));
+      let nm = fitText(b.label, iw + 4, fs);
+      /* 全名放不下时先去掉末尾括号（"奶茶（三分糖）" → "奶茶"），
+         比留一个"奶茶（…"干净得多 */
+      if (nm.endsWith('…')) {
+        const bare = b.label.replace(/[（(][^）)]*[）)]\s*$/, '');
+        if (bare !== b.label) nm = fitText(bare, iw + 4, fs);
+      }
+      const ny = y + 7 + fs;
+      s += `<text x="${nx.toFixed(1)}" y="${ny.toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="600" fill="#fff" fill-opacity="0.96">${esc(nm)}</text>`;
+      if (ih >= 46) {
+        const fs2 = Math.min(12, Math.max(9.5, h / 12));
+        /* 不带 " kcal"：图例已经交代了单位，块内多这四个字符会把数字挤到断行 */
+        s += `<text x="${nx.toFixed(1)}" y="${(ny + fs2 + 5).toFixed(1)}" font-size="${fs2.toFixed(1)}" font-weight="500" fill="#fff" fill-opacity="0.74" font-family="${MONO_F}">${sign}${b.v}</text>`;
+      }
+    } else if (iw >= 22 && ih >= 10) {
+      const fs2 = Math.min(11, Math.max(8.5, h / 6));
+      s += `<text x="${nx.toFixed(1)}" y="${(y + h / 2 + fs2 * 0.36).toFixed(1)}" font-size="${fs2.toFixed(1)}" font-weight="600" fill="#fff" fill-opacity="0.8" font-family="${MONO_F}">${sign}${b.v}</text>`;
+    }
+    s += '</g>';
+  }
+  return s;
+}
+
+/* 整张大盘画布：上半红（摄入）下半绿（消耗），中间一条 2.4px 缝。
+   两区共用同一个 viewBox，所以高度比就是真实热量比 —— 这一条是整张图的语义地基。 */
+function boardCanvas(buyItems, sellItems, W, H) {
+  const buySum = buyItems.reduce((s, i) => s + i.v, 0);
+  const sellSum = sellItems.reduce((s, i) => s + i.v, 0);
+  const MID = 2.4;
+  const { hb, hi } = boardHeights(sellSum, buySum, H - MID);
+  const parts =
+    blockMarkup(buyItems, 0, 0, W, hi, true, '+') +
+    blockMarkup(sellItems, 0, hi + MID, W, hb, false, '-');
+  if (!parts) {
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"><text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="10" fill="#4C5560">还没有今天的流水</text></svg>`;
+  }
+  /* 有块要动时给整张图挂 .bd-anim，块里的文字延后 0.2s 统一淡入：
+     让文字跟着块一起飞会糊，等位置落定再显出来更干净 */
+  const anim = parts.indexOf('data-from') >= 0;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block"${anim ? ' class="bd-anim"' : ''}>${parts}</svg>`;
+}
+
+/* 两区高度：按热量比分配，但各留一点下限，
+   否则某一边极小时会退化成一条线，用户会以为没数据。
+   默认合计 172 是历史基准，实际渲染时按目标高度等比缩放。 */
+function boardHeights(burnK, intakeK, total = 172) {
+  const sum = burnK + intakeK;
+  if (sum <= 0) return { hb: total / 2, hi: total / 2 };
+  const MIN = (44 * total) / 172;
+  let hb = (total * burnK) / sum;
+  hb = Math.min(total - MIN, Math.max(MIN, hb));
+  return { hb, hi: total - hb };
+}
+
+/* ================= 首页第一屏：大盘挤压方块 =================
+   这张卡是打开 App 的第一眼，所以它得自己把话说完整：
+   今天（或本月）到底是净空还是净多、离目标还差多少、钱花在哪儿了。
+   两张口径共用同一套画布，切换只换数据，不换视觉语言 —— 这样"今日"和
+   "月度"的比例可以直接隔屏对比。 */
+function boardCard() {
+  const isMonth = state.boardTab === 'month';
+  const td = targetDeficit();
+  const arc = archivedDay();
+  /* 同一张图才补间：换交易日、切今日/月度、进出归档态都属于"换了张图"，直接落地 */
+  const ctxKey = `${state.selDate}|${state.boardTab}|${arc ? 'a' : 'n'}`;
+  __BANIM = __BMEMO.ctx === ctxKey;
+  if (!__BANIM) __BMEMO = { ctx: ctxKey, buy: {}, sell: {} };
+  const now = selDateObj();
+  const y = now.getFullYear();
+  const mo = now.getMonth() + 1;
+  const dd = now.getDate();
+
+  let buyItems, sellItems, gap, target, dayCount = 1, canvasH = 338;
+
+  if (isMonth) {
+    /* 月度口径：按月内自然周聚合，一周一块。
+       为什么不按天：26 块挤在 360px 里只会碎成马赛克，数字全被裁断，
+       而且日间热量本来就接近，反而看不出任何东西。折成 4~5 块之后，
+       "哪一周吃爆了"是一眼就能看出来的事 —— 这也和 K 线的周线对得上。 */
+    const list = ALL_DAYS().slice(-dd);
+    dayCount = list.length;
+    const buckets = [];
+    list.forEach((d) => {
+      const day = +d.date.slice(8);
+      const wk = Math.ceil(day / 7);
+      if (!buckets[wk]) {
+        const s = (wk - 1) * 7 + 1;
+        const e = Math.min(wk * 7, dd);
+        buckets[wk] = { label: `第${wk}周`, intake: 0, burn: 0, net: 0 };
+      }
+      buckets[wk].intake += d.intake;
+      buckets[wk].burn += d.burn;
+      buckets[wk].net += d.net;
+    });
+    const rows = buckets.filter(Boolean);
+    buyItems = rows.map((b) => ({ label: b.label, v: b.intake }));
+    sellItems = rows.map((b) => ({ label: b.label, v: b.burn }));
+    gap = Math.round(rows.reduce((s, b) => s + b.net, 0));
+    target = td * dayCount;
+    canvasH = 316;
+  } else if (arc) {
+    /* 归档日：没有逐笔明细，但历史序列里存了那天的宏量营养，
+       所以摄入可以按蛋白/脂肪/碳水真实拆开 —— 这不是编的，是那天真吃了这么多。
+       消耗只知道总数，按档案里"基础代谢 : 日常活动"的比例折算，
+       多出来的部分归到"运动与活动"，这样两块加回去正好等于当天总消耗。 */
+    const mp = arc.pro * 4, mf = arc.fat * 9, mc = arc.carb * 4;
+    const rest = arc.intake - (mp + mf + mc);
+    buyItems = [
+      { label: '碳水', v: mc },
+      { label: '脂肪', v: mf },
+      { label: '蛋白', v: mp },
+      ...(rest > 40 ? [{ label: '其他', v: rest }] : [])
+    ];
+    const bmrArc = Math.round(bmr() * (arc.burn / Math.max(1, tdee())));
+    sellItems = [
+      { label: '基础代谢', v: bmrArc },
+      { label: '运动与活动', v: Math.max(0, arc.burn - bmrArc) }
+    ];
+    gap = arc.net;
+    target = td;
+  } else {
+    /* 当日口径：卖盘 = 运动 + 基础代谢 + 日常活动，买盘 = 每一笔摄入 */
+    const foods = state.logs.filter((l) => l.type === 'food');
+    const burns = state.logs.filter((l) => l.type === 'burn');
+    buyItems = foods.map((f) => ({ label: f.name, v: f.kcal }));
+    sellItems = [
+      ...burns.map((b) => ({ label: b.name, v: b.kcal })),
+      { label: '基础代谢', v: bmr() },
+      ...(neat() > 0 ? [{ label: '日常活动', v: neat() }] : [])
+    ];
+    gap = net();
+    target = td;
+  }
+
+  const planGap = Math.round(gap + target);
+  const planDone = planGap <= 0;
+  /* 月度里"还差 11678"这种数字只会让人挫败，换成完成度更有意义 */
+  const donePct = target > 0 ? Math.max(0, Math.min(999, Math.round((-gap / target) * 100))) : 100;
+  const pillTxt = planDone ? '已达标' : isMonth ? `完成 ${donePct}%` : `还差 ${Math.abs(planGap)} kcal`;
+  /* 缺口为负 = 赚，箭头朝上（和行情软件的涨势一致） */
+  const arrow = gap < 0 ? '↗' : gap > 0 ? '↘' : '→';
+  /* target 是计划缺口（正数 = 每天要造 500 的缺口）。按盈亏口径，缺口就是赚，所以显示 +500 */
+  const targetTxt = `${target >= 0 ? '+' : '-'}${Math.abs(Math.round(target))}`;
+  const dateTxt = isMonth ? `${y}年${mo}月 · 已过 ${dayCount} 天` : `${y}年${mo}月${dd}日`;
+
+  return `
+    <div class="bd-card">
+      <div class="bd-top">
+        <div>
+          <div class="bd-sym">CAL·INDEX${isMonth ? ' · MTD' : ''}</div>
+          <div class="bd-date">${dateTxt}</div>
+        </div>
+        <div>
+          <div class="bd-sk">⚡ ${liveStreak()} 天连击</div>
+          <div class="bd-sk2">保持缺口区间不中断</div>
+        </div>
+      </div>
+
+      <div class="bd-gap">
+        <div class="bd-gap-l">
+          <span>${isMonth ? '本月净缺口' : selIsToday() ? '今日净缺口' : '当日净缺口'}</span>
+          <div class="bd-gap-n ${profitCls(gap)}"><span>${arrow} ${profitTxt(gap)}</span><i>kcal</i></div>
+        </div>
+        <div class="bd-gap-r">
+          <span>目标</span>
+          <b>${targetTxt} kcal</b>
+          <em class="bd-pill ${planDone ? 'ok' : 'bad'}">${pillTxt}</em>
+        </div>
+      </div>
+
+      <div class="bd-tabs">
+        <button class="bd-tab ${isMonth ? '' : 'on'}" data-board="today">${selIsToday() ? '今日大盘' : '当日大盘'}</button>
+        <button class="bd-tab ${isMonth ? 'on' : ''}" data-board="month">月度大盘</button>
+      </div>
+
+      <div class="bd-canvas">${boardCanvas(buyItems, sellItems, 360, canvasH)}</div>
+      ${arc ? `<div class="bd-arch">这一天本地只有归档汇总（演示数据），逐笔明细拿不到。去「卖出」或「买入」给它补记一笔，之后这张图就以你的记录为准。</div>` : ''}
+
+      <div class="bd-legend">
+        <button class="bd-jump buy" data-view="nearby"><i style="background:hsl(152 71% 45%)"></i>买入 +</button>
+        <button class="bd-jump sell" data-view="log"><i style="background:hsl(357 77% 50%)"></i>卖出 −</button>
+        <span class="sp">点方块直达对应账本</span>
+      </div>
+      <div class="bd-tip">记一笔再回来看：对应那块会当场长大，其他块被挤着让位。</div>
+    </div>`;
+}
+
+function viewMarket() {
+  const n = net();
+  const cur = liveWeight();
+  const shortKg = OPEN_PRICE - cur;
+  const toTarget = cur - state.targetWeight;
+  const t = selBar();
+  /* 涨跌用「收盘 − 开盘」而不是缺口折算：归档日的开盘/收盘来自历史序列，
+     两者口径一致，才不会出现"显示 -0.06kg 但今开与收盘差 0.07"的别扭 */
+  const d = cur - t.open;
+  const dPct = t.open ? (d / t.open) * 100 : 0;
+  const bars = periodBars(state.period);
+  const pFirst = bars[0], pLast = bars[bars.length - 1];
+  const pChg = pLast.close - pFirst.open;
+  const pPct = (pChg / pFirst.open) * 100;
+  const hi = Math.max(...bars.map((b) => b.high));
+  const lo = Math.min(...bars.map((b) => b.low));
+  const volAvg = bars.reduce((s, b) => s + (b.vol || 0), 0) / bars.length;
+  const basis = basisKg();
+
+  const tabs = ['D', 'W', 'M', 'Q', 'Y']
+    .map((p) => `<button class="pt ${state.period === p ? 'on' : ''}" data-period="${p}">${PERIOD_META[p].name}</button>`)
+    .join('');
+
+  return `
+    ${boardCard()}
+
+    <div class="ticker">
+      <div class="tk-halo" style="background:radial-gradient(circle, ${
+        d >= 0 ? 'rgba(61,214,140,.17)' : 'rgba(229,72,77,.17)'
+      }, transparent 62%)"></div>
+      <div class="tk-head">
+        <div>
+          <div class="tk-sym">BODY·INDEX <i class="tk-live${selIsToday() ? '' : ' arc'}">${selIsToday() ? 'LIVE' : '归档'}</i></div>
+          <div class="tk-sub">体重标的 · 前复权 · 1kg 脂肪 = 7700 kcal</div>
+        </div>
+        <span class="tk-badge ${d >= 0 ? 'up' : 'down'}">${signTxt(d, 3)} kg</span>
+      </div>
+
+      <div class="tk-price ${signCls(d)}">${fmt(cur)}<small>kg</small></div>
+
+      <div class="tk-change">
+        <span class="${signCls(d)}">${signTxt(d, 3)} kg</span>
+        <span class="tk-pct ${signCls(d)}">${signTxt(dPct, 2)}%</span>
+        <span class="tk-vs">浮盈 ${fmt(shortKg)} kg</span>
+      </div>
+
+      <div class="tk-grid">
+        <div><span>今开</span><b>${fmt(t.open)}</b></div>
+        <div><span>最高</span><b>${fmt(t.high)}</b></div>
+        <div><span>最低</span><b>${fmt(t.low)}</b></div>
+        <div><span>净缺口</span><b class="${profitCls(n)}">${profitTxt(n)}</b></div>
+      </div>
+    </div>
+
+    <div class="card kcard">
+      <div class="kcard-head">
+        <div class="pt-tabs">${tabs}</div>
+        <div class="kcard-chg ${pChg >= 0 ? 'up' : 'down'}">${signTxt(pChg, 2)}<em>${signTxt(pPct, 2)}%</em></div>
+      </div>
+      <div class="kzoom">
+        <span class="kz-l">根数</span>
+        ${K_ZOOM.map((z, i) => `<button class="${state.kZoom === i ? 'on' : ''}" data-kzoom="${i}">${z.name}</button>`).join('')}
+        <em>${PERIOD_META[state.period].name}线 ${bars.length} 根 · 共 ${periodRangeText(state.period, bars)}</em>
+      </div>
+      ${renderKline(bars, state.period)}
+      <div class="kstat">
+        <div><span>区间最高</span><b>${fmt(hi)}</b></div>
+        <div><span>区间最低</span><b>${fmt(lo)}</b></div>
+        <div><span>均量(消耗)</span><b>${fmtVol(volAvg)}</b></div>
+      </div>
+      <div class="khint">按住图表，可查看任意一根的开高低收</div>
+    </div>
+
+    ${volCard()}
+
+    ${budgetCard()}
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">持仓</span>
+        <span class="card-note">${OPEN_DAY} 开仓做空</span>
+      </div>
+      <div class="pos-grid">
+        <div class="pos-cell"><span>成本价</span><b>${fmt(OPEN_PRICE)}</b></div>
+        <div class="pos-cell"><span>浮盈</span><b class="down">${fmt(shortKg)}</b></div>
+        <div class="pos-cell"><span>距目标</span><b>${fmt(toTarget)}</b></div>
+      </div>
+      <div class="bar-legend" style="margin-top:10px">
+        <span>强平线 ${fmt(state.liquidateWeight)} kg</span>
+        <span>${cur > state.liquidateWeight ? '已触及强平，注意反弹' : '仓位安全'}</span>
+      </div>
+      <div class="basis-note">
+        基差 ${signTxt(basis, 2)} kg = 实际体重 − 理论体重。${
+          Math.abs(basis) < 0.2
+            ? '两者基本贴合，近期的缺口都兑现了。'
+            : basis > 0
+            ? '身体里还压着水分，这部分缺口会滞后兑现，别被秤上的数字骗了。'
+            : '水分退得比理论更快，属于短期多退，通常会反弹一点。'
+        }
+      </div>
+    </div>
+
+    <div class="foot-note">
+      1 kg 脂肪 ≈ 7700 kcal。单日体重波动可达 ±0.5~1.5 kg，约为缺口真实信号的 15 倍，所以看趋势别看单日。<br>
+      历史行情为演示数据（按体重控制点与每日缺口生成），接入真实记录后接口不变。
+    </div>`;
+}
+
+function viewNearby() {
+  const list = shops
+    .filter(s => state.category === 'all' || s.cat === state.category)
+    .map(s => ({ ...s, eff: efficiency(s), kcal: caloriesOf(s) }))
+    .sort((a, b) => b.eff - a.eff);
+
+  return `
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px">
+      <span style="font-size:15px;font-weight:500">买入盘口</span>
+      <span style="font-size:10px;color:var(--dim)">${list.length} 个标的 · <b class="jumpboard" data-view="market">看大盘 ›</b></span>
+    </div>
+    <div class="edit-hint">点按任意标的，可改克重、热量与价格</div>
+    <div class="chips" style="margin-top:10px">
+      ${CATS.map(c => `<button class="chip ${state.category === c.k ? 'on' : ''}" data-cat="${c.k}">${c.t}</button>`).join('')}
+    </div>
+    <div class="card" style="margin-top:10px">
+      ${list.length === 0 ? '<div class="empty">这个分类下还没有标的</div>' : list.map(s => {
+        const isLong = s.eff < 0;
+        return `
+        <div class="shop">
+          <div class="shop-body" data-edit="${s.id}" style="cursor:pointer">
+            <div class="shop-top">
+              <span class="shop-name">${s.shop}</span>
+              <span class="shop-dist">${s.dist || ''}</span>
+            </div>
+            <div class="shop-dish">${s.dish} · ${s.grams}g</div>
+            <div class="shop-meta">${s.kcal} kcal · ¥${s.price} · ${s.per100}kcal/100g</div>
+          </div>
+          <div class="shop-side">
+            <div class="eff ${isLong ? 'up' : 'down'}">${isLong ? '' : '+'}${s.eff}</div>
+            <div class="eff-unit">kcal / 元</div>
+            <button class="${isLong ? 'btn-long' : 'btn-short'}" data-eat="${s.id}">${isLong ? '仍要做多' : '做空这笔'}</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <button class="add-bar" data-add="1">+ 添加自己的标的</button>
+    <div class="foot-note">
+      做空效率 =（品类基准热量 − 实际热量）÷ 价格，即每花 1 元能换来多少 kcal 缺口。负值代表这顿吃完要额外运动才能填平。<br>
+      热量按「每 100g × 克重 ÷ 100」实时换算。内置 100+ 条中式食物数据；你手动填过的食物会自动存进个人食物库，下次搜索带「我」标记。
+    </div>`;
+}
+
+function viewLog() {
+  const d = state.exDraft;
+  const editing = state.exEditId != null;
+  const arc = archivedDay();
+  const dayWord = selIsToday() ? '今日' : '当日';
+  const kcal = d.kcal == null ? metBurn(d.met, d.mins) : d.kcal;
+  const ex = EXERCISES[d.pick];
+
+  /* 流水行。运动那一行可点，点了把数据填回表单改 */
+  const rows = state.logs
+    .map((l) => {
+      const isBurn = l.type === 'burn';
+      const sub = isBurn && l.mins ? `${l.mins}′ · ${l.met || '—'} MET` : '';
+      const on = state.exEditId === l.id;
+      return `
+    <div class="log-row ${isBurn ? 'tap' : ''} ${on ? 'log-editing' : ''}" ${isBurn ? `data-exedit="${l.id}"` : ''}>
+      <span class="log-dot" style="background:${isBurn ? 'var(--down)' : 'var(--up)'}"></span>
+      <span class="log-name">${esc(l.name)}${sub ? `<i class="log-sub">${sub}</i>` : ''}</span>
+      <span class="log-kcal ${isBurn ? 'down' : 'up'}">${isBurn ? '-' : '+'}${l.kcal}</span>
+      <button class="log-del" data-del="${l.id}">×</button>
+    </div>`;
+    })
+    .join('');
+
+  return `
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+      <span style="font-size:15px;font-weight:500">卖出盘口</span>
+      <span style="font-size:10px;color:var(--dim)">${arc
+        ? `${state.selDate.slice(5)} 归档 · 消耗 ${arc.burn} kcal（无逐笔）`
+        : `${selIsToday() ? '今天' : state.selDate.slice(5)} 卖出 ${state.logs.filter((l) => l.type === 'burn').length} 笔 · 换回 ${exerciseBurn()} kcal · <b class="jumpboard" data-view="market">看大盘 ›</b>`}</span>
+    </div>
+
+    <div class="totals">
+      <div class="total-box"><span>${dayWord}摄入</span><b class="up">${intake()}</b></div>
+      <div class="total-box"><span>${dayWord}消耗</span><b class="down">${burn()}</b></div>
+    </div>
+
+    <div class="card" style="margin-top:0">
+      <div class="card-head">
+        <span class="card-title">${editing ? '编辑运动' : '记一笔运动'}</span>
+        <span class="card-note" id="ex-formula">(${d.met || 0} − 1) × ${fmt(state.weight, 1)}kg × ${((d.mins || 0) / 60).toFixed(2)}h</span>
+      </div>
+
+      <div class="ex-chips">
+        ${EXERCISES.map((e, i) => `<button class="chip ${d.pick === i ? 'on' : ''}" data-ex="${i}" title="${e.hint}">${e.name}</button>`).join('')}
+      </div>
+
+      <div class="ex-grid">
+        <label class="ex-f"><span>运动项目</span>
+          <input id="ex-name" value="${esc(d.name)}" placeholder="如：跑步机 8km/h">
+        </label>
+        <label class="ex-f"><span>强度 MET ${ex && ex.hint ? `· ${ex.hint}` : ''}</span>
+          <input id="ex-met" type="number" step="0.1" min="1" inputmode="decimal" value="${d.met}">
+        </label>
+        <label class="ex-f"><span>时长（分钟）</span>
+          <input id="ex-min" type="number" min="1" inputmode="numeric" value="${d.mins}">
+        </label>
+        <label class="ex-f"><span>消耗 kcal</span>
+          <input id="ex-kcal" type="number" min="0" inputmode="numeric" value="${kcal}">
+        </label>
+      </div>
+
+      <div class="ex-quick">
+        ${[15, 30, 45, 60, 90].map((m) => `<button class="chip ${d.mins === m ? 'on' : ''}" data-exmin="${m}">${m}′</button>`).join('')}
+      </div>
+
+      <div class="ex-acts">
+        <button class="ex-btn" id="ex-save">${editing ? '保存修改' : `记入卖盘 · ${kcal} kcal`}</button>
+        ${editing ? '<button class="ex-btn ghost" id="ex-cancel">取消</button>' : ''}
+      </div>
+
+      <div class="ex-hint">
+        消耗 = <b>(MET − 1) × 体重 × 时长</b>。减掉 1 是因为你躺着也要烧这部分，
+        不减就会和基础代谢重复计一次，总消耗虚高。
+        ${d.kcal != null ? '<br><b style="color:var(--gold)">当前是你手动改过的数值，改时长或强度会回到公式值。</b>' : ''}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">${dayWord}成交</span>
+        <span class="card-note">运动那行可以点开改</span>
+      </div>
+      ${rows || `<div class="empty">${selIsToday() ? '今天还没有任何成交' : '这一天没有逐笔记录'}</div>`}
+      ${arc ? `<div class="bd-arch">归档汇总：摄入 ${arc.intake} kcal · 消耗 ${arc.burn} kcal。这一天的逐笔明细不在本地；你补记任意一笔之后，这一天就以你的记录为准（归档数不再叠加）。</div>` : ''}
+      <div class="bar-legend" style="margin-top:12px">
+        <span>净额 ${profitTxt(net())} kcal</span>
+        <span>${profitTxt(net() / KCAL_PER_KG, 3)} kg 当量</span>
+      </div>
+    </div>
+
+    <div class="foot-note">
+      点上方「买入」可以从真实商家下单，热量会写入今日买盘。<br>
+      运动记录只存当天，隔天自动清空 —— 盘口是当日概念，把昨天的成交混进来净额就不对了。
+    </div>`;
+}
+
+/* ================= 运动录入：草稿与局部同步 =================
+   表单活在页面里，整页 render() 会重建 input，打断输入和焦点。
+   所以输入过程中只更新草稿 + 局部 DOM，绝不 render。 */
+
+function syncExDom() {
+  const d = state.exDraft;
+  const kcal = d.kcal == null ? metBurn(d.met, d.mins) : d.kcal;
+
+  const setVal = (id, v) => {
+    const el = $(id);
+    if (!el || el === document.activeElement) return;   // 正在输入的那格不覆盖
+    if (el.value !== String(v)) el.value = v;
+  };
+  setVal('ex-name', d.name);
+  setVal('ex-met', d.met);
+  setVal('ex-min', d.mins);
+  setVal('ex-kcal', kcal);
+
+  document.querySelectorAll('[data-ex]').forEach((b) => b.classList.toggle('on', Number(b.dataset.ex) === d.pick));
+  document.querySelectorAll('[data-exmin]').forEach((b) => b.classList.toggle('on', Number(b.dataset.exmin) === d.mins));
+
+  const fm = $('ex-formula');
+  if (fm) fm.textContent = `(${d.met || 0} − 1) × ${fmt(state.weight, 1)}kg × ${((d.mins || 0) / 60).toFixed(2)}h`;
+
+  const btn = $('ex-save');
+  if (btn) btn.textContent = state.exEditId != null ? '保存修改' : `记入卖盘 · ${kcal} kcal`;
+}
+
+function pickEx(i) {
+  const e = EXERCISES[i];
+  if (!e) return;
+  state.exDraft.pick = i;
+  state.exDraft.name = e.name;
+  state.exDraft.met = e.met;
+  state.exDraft.kcal = null;        // 换项目就回到公式值，别把上一项的手改值带过来
+  syncExDom();
+}
+
+function startEditEx(id) {
+  const l = state.logs.find((x) => String(x.id) === String(id));
+  if (!l) return;
+  state.exEditId = l.id;
+  state.exDraft = {
+    pick: -1,
+    name: l.name,
+    met: Number(l.met) || 5,
+    mins: Number(l.mins) || 30,
+    kcal: l.kcal
+  };
+  render();
+  const el = $('ex-name');
+  if (el) el.focus();
+}
+
+function cancelEx() {
+  state.exEditId = null;
+  state.exDraft = blankDraft();
+  render();
+}
+
+function saveEx() {
+  const d = state.exDraft;
+  const name = String(d.name || '').trim() || '运动';
+  const mins = Math.round(Number(d.mins) || 0);
+  const met = Number(d.met) || 0;
+  const kcal = d.kcal == null ? metBurn(met, mins) : Math.round(Number(d.kcal) || 0);
+
+  if (!mins) {
+    toast('先填时长');
+    if ($('ex-min')) $('ex-min').focus();
+    return;
+  }
+  if (kcal <= 0) {
+    toast('消耗要大于 0');
+    if ($('ex-kcal')) $('ex-kcal').focus();
+    return;
+  }
+
+  if (state.exEditId != null) {
+    const l = state.logs.find((x) => String(x.id) === String(state.exEditId));
+    if (l) Object.assign(l, { name, kcal, mins, met });
+    state.exEditId = null;
+    toast(`已更新 · 这条记 ${kcal} kcal`);
+  } else {
+    state.logs.push({ id: Date.now(), type: 'burn', name, kcal, mins, met });
+    toast(`卖单成交 · -${kcal} kcal`);
+  }
+  /* 保留项目和时长，方便连着记第二组；只清掉手改的消耗值 */
+  d.kcal = null;
+  d.name = name;
+  d.mins = mins;
+  saveLogs();
+  render();
+}
+
+/* ================= 逐日流水持久化 =================
+   按日期分桶：盘口是当日概念，昨天的成交混进今天，净额和方块图都会错；
+   但换到"补记昨天"的场景又必须能按日存，所以键是日期而不是"today"。 */
+let DAY_STORE = {};
+
+function loadDayStore() {
+  const out = {};
+  try {
+    const raw = localStorage.getItem('calex.daylog.v2');
+    if (raw) {
+      const o = JSON.parse(raw);
+      if (o && typeof o === 'object' && !Array.isArray(o)) {
+        Object.keys(o).forEach((k) => { if (Array.isArray(o[k])) out[k] = o[k]; });
+      }
+      return out;
+    }
+    /* 老格式只有"当天"一条，迁移过来 */
+    const old = localStorage.getItem('calex.daylog.v1');
+    if (old) {
+      const d = JSON.parse(old);
+      if (d && d.date && Array.isArray(d.items)) out[d.date] = d.items;
+    }
+  } catch (e) {
+    /* 隐私模式读不出来，当作空库 */
+  }
+  return out;
+}
+
+function saveLogs() {
+  if (!state.selDate) return;
+  if (state.logs.length) DAY_STORE[state.selDate] = state.logs;
+  else delete DAY_STORE[state.selDate];      // 删光了就回到归档态
+  try {
+    localStorage.setItem('calex.daylog.v2', JSON.stringify(DAY_STORE));
+    touchData('记一笔');
+  } catch (e) {
+    /* 隐私模式写不进去，忽略 */
+  }
+}
+
+/* 换交易日：当前日的流水先落盘，再装载目标日 */
+function switchDate(date) {
+  if (!date || date === state.selDate) return;
+  saveLogs();
+  state.selDate = date;
+  state.logs = (DAY_STORE[date] || []).slice();
+  state.exEditId = null;
+  state.exDraft = blankDraft();
+  state.boardTab = 'today';
+  render();
+  if (date === todayStr()) toast('已回到今天');
+  else if (archivedDay()) toast(`${date.slice(5)} 是归档日 · 只有汇总`);
+  else toast(`已切到 ${date.slice(5)}`);
+}
+
+/* ================= 本地数据仓库：备份 / 恢复 / 快照 =================
+   目标不是「数据存在浏览器里」，而是「数据在你手里」。localStorage 有三个现实短板：
+   换设备带不走、清缓存就没了、iOS 长期不用会被系统回收。
+   所以给三条出口 + 一条兜底：
+     1) 手动备份：导出 JSON 文件 / 复制备份码 / 系统分享 —— 手机上总有一条路能走通
+     2) 一键恢复：文件导入或粘贴备份码，可选「覆盖本机」或「合并进来」
+     3) 自动快照：本机环形留最近 6 份，误删、误清都能退回去
+     4) 恢复和清空之前先把当前状态存成快照，所以这两个动作本身也能反悔
+
+   备份里只装「用户产生的数据」。食物基准库、演示行情、代码都不装：
+   它们能从程序本身还原，塞进备份只会让文件变大、恢复变危险。
+*/
+
+const DATA_APP = 'calex';
+const DATA_SCHEMA = 1;
+const BACKUP_TAG = 'CALEX1:';
+const SNAP_IDX_KEY = 'calex.snap.idx';
+const SNAP_MAX = 6;
+const SNAP_MIN_GAP = 6 * 60 * 1000;   // 自动快照最小间隔，避免每记一笔就存一份
+const META_KEY = 'calex.meta.v1';
+
+const DATA_PARTS = [
+  { key: 'calex.daylog.v2', as: 'daylog', name: '逐日流水' },
+  { key: 'calex.shops.v1', as: 'shops', name: '自选盘口' },
+  { key: 'calex.myfoods.v1', as: 'foods', name: '我的食物' },
+  { key: 'calex.profile.v1', as: 'profile', name: '设置与体重' }
+];
+
+/* ---- 底层读写：隐私模式下 localStorage 会抛异常，一律吞掉并降级 ---- */
+function lsGet(k) {
+  try { return localStorage.getItem(k); } catch (e) { return null; }
+}
+function lsSet(k, v) {
+  try { localStorage.setItem(k, v); return true; } catch (e) { return false; }
+}
+function lsDel(k) {
+  try { localStorage.removeItem(k); } catch (e) { /* 忽略 */ }
+}
+function readJSON(k, fb) {
+  const raw = lsGet(k);
+  if (!raw) return fb;
+  try {
+    const o = JSON.parse(raw);
+    return o == null ? fb : o;
+  } catch (e) {
+    return fb;
+  }
+}
+
+function collectData() {
+  const out = {};
+  DATA_PARTS.forEach((p) => { out[p.as] = readJSON(p.key, null); });
+  return out;
+}
+
+/* 备份里给用户看的摘要：多少天、多少笔、跨度多久 */
+function dataStats(data) {
+  const dl = (data && data.daylog) || {};
+  const days = Object.keys(dl).filter((k) => Array.isArray(dl[k]) && dl[k].length).sort();
+  const items = days.reduce((s, k) => s + dl[k].length, 0);
+  return {
+    days: days.length,
+    items,
+    shops: data && Array.isArray(data.shops) ? data.shops.length : 0,
+    foods: data && Array.isArray(data.foods) ? data.foods.length : 0,
+    first: days[0] || null,
+    last: days[days.length - 1] || null
+  };
+}
+
+function payloadBytes(data) {
+  try { return JSON.stringify(data).length; } catch (e) { return 0; }
+}
+
+function fmtBytes(n) {
+  if (!n) return '0 B';
+  if (n < 1024) return n + ' B';
+  return (n / 1024).toFixed(1) + ' KB';
+}
+
+function ago(ts) {
+  if (!ts) return '从未';
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 60) return '刚刚';
+  if (s < 3600) return Math.floor(s / 60) + ' 分钟前';
+  if (s < 86400) return Math.floor(s / 3600) + ' 小时前';
+  const d = Math.floor(s / 86400);
+  return d < 30 ? d + ' 天前' : new Date(ts).toLocaleDateString('zh-CN');
+}
+
+function metaInfo() {
+  const m = readJSON(META_KEY, {});
+  return m && typeof m === 'object' ? m : {};
+}
+function setMeta(patch) {
+  lsSet(META_KEY, JSON.stringify({ ...metaInfo(), ...patch }));
+}
+
+/* ---- 快照包 ---- */
+function buildBackup() {
+  const data = collectData();
+  return {
+    app: DATA_APP,
+    schema: DATA_SCHEMA,
+    savedAt: new Date().toISOString(),
+    stats: dataStats(data),
+    data
+  };
+}
+
+/* ---- base64：备份码要能过微信、备忘录、短信，不能带换行和引号 ---- */
+function toB64(str) {
+  if (typeof btoa !== 'function' || typeof TextEncoder !== 'function') return '';
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function fromB64(b64) {
+  if (typeof atob !== 'function') throw new Error('当前环境不支持备份码，请用文件备份');
+  const bin = atob(String(b64).replace(/\s+/g, ''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+function backupCode() {
+  return BACKUP_TAG + toB64(JSON.stringify(buildBackup()));
+}
+
+/* ---- 解析备份：任何字段都不信任，逐项校验后再用 ----
+   这一步是安全阀。用户可能选错文件（比如选了自己的账单），
+   直接 JSON.parse 就往 localStorage 里灌，轻则 App 白屏，重则数据被清空。 */
+function parseBackup(text) {
+  let s = String(text == null ? '' : text).trim();
+  if (!s) throw new Error('内容是空的');
+  if (s.indexOf(BACKUP_TAG) === 0) {
+    try { s = fromB64(s.slice(BACKUP_TAG.length)); }
+    catch (e) { throw new Error('备份码已损坏，可能复制时被截断了'); }
+  }
+  let obj = null;
+  try { obj = JSON.parse(s); } catch (e) { throw new Error('这不是备份文件（无法解析）'); }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('备份内容格式不对');
+
+  const app = obj.app || (obj.data && obj.data.daylog ? DATA_APP : '');
+  if (app !== DATA_APP) throw new Error('这看起来不是《卡路里交易所》的备份');
+
+  const raw = obj.data && typeof obj.data === 'object' ? obj.data : obj;
+  const clean = {};
+  DATA_PARTS.forEach((p) => {
+    const v = raw[p.as];
+    if (v == null) return;
+    if (p.as === 'daylog') {
+      if (typeof v !== 'object' || Array.isArray(v)) return;
+      const days = {};
+      Object.keys(v).forEach((k) => {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(k) && Array.isArray(v[k])) {
+          days[k] = v[k].filter((x) => x && typeof x === 'object');
+        }
+      });
+      clean.daylog = days;
+    } else if (p.as === 'profile') {
+      if (typeof v === 'object' && !Array.isArray(v)) clean.profile = v;
+    } else if (Array.isArray(v)) {
+      clean[p.as] = v.filter((x) => x && typeof x === 'object');
+    }
+  });
+
+  const stats = dataStats(clean);
+  if (!stats.days && !stats.shops && !stats.foods && !clean.profile) {
+    throw new Error('备份里没有可用数据');
+  }
+  return { savedAt: obj.savedAt || null, stats, data: clean };
+}
+
+/* ---- 合并：换新手机后先在本地记了几天，再恢复旧备份时用 ----
+   流水按日期并集、同一笔按 id 去重；盘口按 id、食物按名字去重；
+   设置保留本机的（用户在新机上已经调过了，不该被旧值盖掉）。 */
+function mergeData(cur, inc) {
+  const out = {};
+  if (cur.daylog || inc.daylog) {
+    const a = cur.daylog || {}, b = inc.daylog || {}, o = {};
+    Object.keys(a).forEach((d) => { o[d] = a[d].slice(); });
+    Object.keys(b).forEach((d) => {
+      if (!o[d]) { o[d] = b[d].slice(); return; }
+      const seen = new Set(o[d].map((x) => String(x.id)));
+      b[d].forEach((x) => {
+        if (!seen.has(String(x.id))) { o[d].push(x); seen.add(String(x.id)); }
+      });
+    });
+    out.daylog = o;
+  }
+  const union = (a, b, keyOf) => {
+    const m = new Map();
+    (a || []).forEach((x) => m.set(keyOf(x), x));
+    (b || []).forEach((x) => { const k = keyOf(x); if (!m.has(k)) m.set(k, x); });
+    return Array.from(m.values());
+  };
+  out.shops = union(cur.shops, inc.shops, (s) => String(s.id || s.shop + '|' + s.dish));
+  out.foods = union(cur.foods, inc.foods, (f) => String(f.n || f.name || ''));
+  out.profile = cur.profile || inc.profile || null;
+  return out;
+}
+
+function applyData(data) {
+  const wrote = [];
+  DATA_PARTS.forEach((p) => {
+    const v = data[p.as];
+    if (v == null) return;
+    if (lsSet(p.key, JSON.stringify(v))) wrote.push(p.name);
+  });
+  return wrote;
+}
+
+/* ---- 自动快照：环形缓冲，最老的自动淘汰 ---- */
+function snapIndex() {
+  const a = readJSON(SNAP_IDX_KEY, []);
+  return Array.isArray(a) ? a.filter((s) => s && s.id) : [];
+}
+
+function takeSnapshot(reason, force) {
+  const data = collectData();
+  const st = dataStats(data);
+  if (!force && !st.days && !st.shops && !st.foods) return null;   // 空库不值得存
+  const id = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36);
+  const rec = { at: Date.now(), reason: reason || '自动', stats: st };
+  if (!lsSet('calex.snap.' + id, JSON.stringify({ ...rec, data }))) return null;  // 配额满
+
+  const idx = snapIndex();
+  idx.unshift({ id, ...rec });
+  while (idx.length > SNAP_MAX) {
+    const dead = idx.pop();
+    lsDel('calex.snap.' + dead.id);
+  }
+  lsSet(SNAP_IDX_KEY, JSON.stringify(idx));
+  return id;
+}
+
+/* 每次落盘后调用：同一次操作里连续记三笔，只留第一份，避免把环形缓冲冲爆 */
+function autoSnap(reason) {
+  const idx = snapIndex();
+  const last = idx[0];
+  if (last && Date.now() - last.at < SNAP_MIN_GAP) return;
+  if (!last) { takeSnapshot('首次记录'); return; }
+  const st = dataStats(collectData());
+  const same = last.stats &&
+    last.stats.items === st.items && last.stats.days === st.days &&
+    last.stats.shops === st.shops && last.stats.foods === st.foods;
+  if (same) return;
+  takeSnapshot(reason);
+}
+
+/* 落盘钩子：快照出任何问题都不能影响用户记账这个主流程 */
+function touchData(reason) {
+  try { autoSnap(reason); } catch (e) { /* 配额满 / 隐私模式，忽略 */ }
+}
+
+function restoreSnapshot(id) {
+  const raw = readJSON('calex.snap.' + id, null);
+  if (!raw || !raw.data) throw new Error('这份快照已经不在了');
+  takeSnapshot('回滚前');       // 先保一份现在的，回滚本身也能反悔
+  const wrote = applyData(raw.data);
+  if (!wrote.length) throw new Error('快照内容为空');
+  reloadApp();
+}
+
+/* 内存里的 DAY_STORE / profile / state 都是启动时读出来的，
+   改完 localStorage 必须整页重载才一致；测试桩里没有 location 就退回重绘。 */
+function reloadApp() {
+  if (typeof location !== 'undefined' && location && location.reload) {
+    location.reload();
+    return;
+  }
+  render();
+}
+
+/* ================= 数据页交互 ================= */
+
+function copyText(text) {
+  if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(
+      () => toast('已复制到剪贴板'),
+      () => legacyCopy(text)
+    );
+    return;
+  }
+  legacyCopy(text);
+}
+function legacyCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand && document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (!ok) throw new Error('copy failed');
+    toast('已复制到剪贴板');
+  } catch (e) {
+    toast('复制失败，请长按选择文本');
+  }
+}
+
+function exportBackupFile() {
+  const text = JSON.stringify(buildBackup(), null, 2);
+  const name = '卡路里交易所-备份-' + todayStr().replace(/-/g, '') + '.json';
+  try {
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      if (a.parentNode) a.parentNode.removeChild(a);
+    }, 800);
+    setMeta({ lastBackupAt: Date.now(), lastBackupKind: 'file', backupCount: (Number(metaInfo().backupCount) || 0) + 1 });
+    toast('备份文件已导出 · ' + fmtBytes(text.length));
+  } catch (e) {
+    /* 老浏览器 / 某些 WebView 不允许下载，退回备份码 */
+    copyText(backupCode());
+    setMeta({ lastBackupAt: Date.now(), lastBackupKind: 'copy', backupCount: (Number(metaInfo().backupCount) || 0) + 1 });
+  }
+  render(true);
+}
+
+function copyBackup() {
+  copyText(backupCode());
+  setMeta({ lastBackupAt: Date.now(), lastBackupKind: 'copy', backupCount: (Number(metaInfo().backupCount) || 0) + 1 });
+  render(true);
+}
+
+function shareBackup() {
+  const code = backupCode();
+  if (typeof navigator !== 'undefined' && navigator.share) {
+    navigator.share({ title: '卡路里交易所 · 备份', text: code }).then(
+      () => {
+        setMeta({ lastBackupAt: Date.now(), lastBackupKind: 'share', backupCount: (Number(metaInfo().backupCount) || 0) + 1 });
+        toast('已分享');
+        render(true);
+      },
+      () => { /* 用户取消，不算备份 */ }
+    );
+    return;
+  }
+  copyText(code);
+  toast('当前环境不支持系统分享，已复制备份码');
+}
+
+function pickBackupFile() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json,application/json,text/plain';
+  inp.style.display = 'none';
+  inp.onchange = () => {
+    const f = inp.files && inp.files[0];
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => restoreFromText(String(rd.result || ''));
+    rd.onerror = () => toast('这个文件读不出来');
+    rd.readAsText(f);
+  };
+  document.body.appendChild(inp);
+  inp.click();
+  setTimeout(() => { if (inp.parentNode) inp.parentNode.removeChild(inp); }, 30000);
+}
+
+/* 恢复：先解析出摘要给用户看，再问覆盖还是合并。
+   覆盖 = 换手机的标准动作；合并 = 已经在新机上记了几天，怕丢。 */
+function restoreFromText(text) {
+  let pack;
+  try {
+    pack = parseBackup(text);
+  } catch (e) {
+    alert('这个备份用不了：\n' + e.message);
+    return;
+  }
+  const st = pack.stats;
+  const when = pack.savedAt ? new Date(pack.savedAt).toLocaleString('zh-CN') : '未知时间';
+  const mine = dataStats(collectData());
+  const msg =
+    '备份内容：' + st.days + ' 天记录 · ' + st.items + ' 笔流水 · ' + st.shops + ' 个盘口 · ' + st.foods + ' 条食物\n' +
+    '备份时间：' + when + '\n\n' +
+    '本机现有：' + mine.days + ' 天 · ' + mine.items + ' 笔\n\n' +
+    '点「确定」= 覆盖本机（换手机选这个）\n' +
+    '点「取消」= 合并进来（保留本机记录，只补缺的）';
+
+  const overwrite = confirm(msg);
+  try {
+    takeSnapshot('恢复前', true);
+    const data = overwrite ? pack.data : mergeData(collectData(), pack.data);
+    const wrote = applyData(data);
+    if (!wrote.length) throw new Error('没有写入任何数据');
+    setMeta({ lastRestoreAt: Date.now() });
+    alert('已恢复：' + wrote.join('、') + '\n页面马上刷新');
+    reloadApp();
+  } catch (e) {
+    alert('恢复失败：' + e.message);
+  }
+}
+
+function confirmRestoreSnapshot(id) {
+  const rec = snapIndex().find((s) => s.id === id);
+  if (!rec) return toast('这份快照已经不在了');
+  const st = rec.stats || {};
+  if (!confirm('回滚到「' + ago(rec.at) + '」的快照？\n' + (st.days || 0) + ' 天 · ' + (st.items || 0) + ' 笔 · 盘口 ' + (st.shops || 0) + ' 个\n\n当前记录会先被存成一份新快照。')) return;
+  try {
+    restoreSnapshot(id);
+  } catch (e) {
+    alert('回滚失败：' + e.message);
+  }
+}
+
+function confirmWipe() {
+  if (!confirm('清空本机全部数据？\n\n流水、盘口、食物库、设置都会被删掉。\n清空前会自动留一份快照，只能在这台手机上回滚。')) return;
+  if (!confirm('再确认一次：真的清空？')) return;
+  takeSnapshot('清空前', true);
+  DATA_PARTS.forEach((p) => lsDel(p.key));
+  lsSet(META_KEY, JSON.stringify({ lastBackupAt: 0, backupCount: 0 }));
+  toast('已清空');
+  reloadApp();
+}
+
+function askPersist() {
+  if (typeof navigator === 'undefined' || !navigator.storage || !navigator.storage.persist) {
+    return toast('当前浏览器不支持长期保存声明');
+  }
+  navigator.storage.persist().then(
+    (ok) => {
+      toast(ok ? '已获准长期保存，被系统回收的概率降低' : '系统没有同意，记得定期备份');
+      probePersist();
+    },
+    () => toast('申请失败')
+  );
+}
+
+/* 探针：主线程同步渲染时拿不到承诺结果，先占位再异步补上 */
+function probePersist() {
+  const el = document.getElementById('dp-persist');
+  if (!el) return;
+  if (typeof navigator === 'undefined' || !navigator.storage || !navigator.storage.persisted) {
+    el.textContent = '不支持长期保存';
+    return;
+  }
+  navigator.storage.persisted().then(
+    (ok) => { el.textContent = ok ? '长期保存 · 已开启' : '点这里申请长期保存 ›'; },
+    () => { el.textContent = '无法检测'; }
+  );
+}
+
+function handleDataAction(act, el) {
+  if (act === 'export') return exportBackupFile();
+  if (act === 'copy') return copyBackup();
+  if (act === 'share') return shareBackup();
+  if (act === 'import') return pickBackupFile();
+  if (act === 'do-paste') return restoreFromText(($('dp-code') || {}).value || '');
+  if (act === 'snap') return confirmRestoreSnapshot(el.dataset.id);
+  if (act === 'wipe') return confirmWipe();
+  if (act === 'persist') return askPersist();
+  if (act === 'refresh') return render(true);
+}
+
+/* ================= 复盘页：周报 / 月报 ================= */
+
+/* 复盘窗口用滚动 7 天 / 30 天，而不是自然周月：
+   自然周在周一打开只有 1 天数据，等于看到一张空报表。
+   滚动窗口任何时候都有完整样本，环比口径也更稳定。 */
+function periodRange(kind) {
+  const end = selDateObj();
+  const len = kind === 'W' ? 7 : 30;
+  const start = new Date(end.getTime() - (len - 1) * DAY_MS);
+  const prevEnd = new Date(start.getTime() - DAY_MS);
+  const prevStart = new Date(prevEnd.getTime() - (len - 1) * DAY_MS);
+  return {
+    label: kind === 'W' ? '近 7 天' : '近 30 天',
+    prevLabel: kind === 'W' ? '前 7 天' : '前 30 天',
+    start, end, prevStart, prevEnd
+  };
+}
+
+const sliceDays = (a, b) => {
+  const s = ymd(a), e = ymd(b);
+  return ALL_DAYS().filter((d) => d.date >= s && d.date <= e);
+};
+
+/* 实际体重变化用平滑值，不用首尾单日相减：
+   单日噪音 ±0.9 kg，首尾相减能凭空造出 1.8 kg 的假趋势。 */
+function smoothDelta(days, win) {
+  const all = ALL_DAYS();
+  const i0 = all.findIndex((d) => d.date === days[0].date);
+  if (i0 < 0) return 0;
+  const i1 = i0 + days.length - 1;
+  const avg = (a, b) => {
+    a = Math.max(0, a);
+    let s = 0, c = 0;
+    for (let i = a; i <= b; i++) { s += all[i].close; c++; }
+    return c ? s / c : 0;
+  };
+  const k = Math.max(1, Math.min(win, Math.floor(days.length / 2)));
+  return avg(i1 - k + 1, i1) - avg(i0 - k, i0 - 1);
+}
+
+function rangeStats(days) {
+  if (!days.length) return null;
+  const sum = (k) => days.reduce((s, d) => s + d[k], 0);
+  const netSum = sum('net');
+  const theory = netSum / KCAL_PER_KG;
+  const actual = smoothDelta(days, days.length >= 20 ? 3 : 2);
+  const proTarget = Math.round(state.weight * 1.8);
+  const okDays = days.filter((d) => d.net < 0 && Math.abs(d.net) >= targetDeficit()).length;
+  const longDays = days.filter((d) => d.net > 0).length;
+  const proOk = days.filter((d) => d.pro >= proTarget * 0.9).length;
+  const pick = (cmp) => days.reduce((a, b) => (cmp(b, a) ? b : a));
+  return {
+    n: days.length,
+    netSum,
+    theory,
+    actual,
+    basis: actual - theory,
+    intake: sum('intake'),
+    burn: sum('burn'),
+    okDays,
+    longDays,
+    proOk,
+    proTarget,
+    avgNet: Math.round(netSum / days.length),
+    avgIntake: Math.round(sum('intake') / days.length),
+    avgBurn: Math.round(sum('burn') / days.length),
+    strongest: pick((a, b) => a.net < b.net),      // 最大空头日
+    weakest: pick((a, b) => a.net > b.net),        // 最大多头日
+    eatMost: pick((a, b) => a.intake > b.intake),
+    burnMost: pick((a, b) => a.burn > b.burn),
+    days
+  };
+}
+
+function calendarHTML(days) {
+  if (!days.length) return '';
+  const offset = (new Date(days[0].date + 'T00:00:00').getDay() + 6) % 7;
+  let cells = '';
+  for (let i = 0; i < offset; i++) cells += '<i class="cal-cell blank"></i>';
+  days.forEach((d) => {
+    const cls = d.net > 0 ? 'long' : Math.abs(d.net) >= targetDeficit() ? 'ok' : 'half';
+    cells += `<i class="cal-cell ${cls}" data-day="${d.date}">${Number(d.date.slice(8))}</i>`;
+  });
+  return `<div class="cal">${['一', '二', '三', '四', '五', '六', '日']
+    .map((w) => `<span class="cal-w">${w}</span>`)
+    .join('')}${cells}</div>`;
+}
+
+function dayBarHTML(days) {
+  const maxAbs = Math.max(...days.map((d) => Math.abs(d.net)), 1);
+  return `<div class="dbars">${days
+    .map((d) => {
+      const h = Math.max(1.5, (Math.abs(d.net) / maxAbs) * 26);
+      /* net>0 是净盈余（亏），画到 0 轴下方；net<0 是净缺口（赚），画到上方 */
+      const cls = d.net > 0 ? 'loss' : 'gain';
+      return `<div class="dbar"><i class="${cls}" style="height:${h.toFixed(1)}px"></i></div>`;
+    })
+    .join('')}</div>`;
+}
+
+function reviewSummary(st, label, prev, prevLabel) {
+  const out = [];
+  const kg = Math.abs(st.theory).toFixed(2);
+  if (st.netSum < -0.01) {
+    out.push(`${label}净缺口 +${Math.abs(st.netSum)} kcal，理论上该掉 ${kg} kg，实际秤上${st.actual <= 0 ? '掉了' : '涨了'} ${Math.abs(st.actual).toFixed(2)} kg。`);
+  } else {
+    out.push(`${label}是净盈余 ${profitTxt(st.netSum, 0)} kcal，方向反了，等于在做多自己。`);
+  }
+  if (Math.abs(st.basis) > 0.25) {
+    out.push(
+      st.basis > 0
+        ? `基差 +${st.basis.toFixed(2)} kg，说明还有这部分水分没退，属于"已赚未兑"，别急着改策略。`
+        : `基差 ${st.basis.toFixed(2)} kg，水分退得比理论快，短期好看，但也容易小幅反弹。`
+    );
+  }
+  out.push(`达标 ${st.okDays} / ${st.n} 天${st.okDays >= st.n * 0.7 ? '，节奏保持得不错。' : st.okDays === 0 ? '，一天都没达标，先别谈长期，把明天做到就行。' : '，稳定性是接下来要修的地方。'}`);
+  if (st.proOk < st.n * 0.5) {
+    out.push(`蛋白质只有 ${st.proOk} 天达标（目标 ${st.proTarget}g）。热量控制住了但蛋白不够，掉的会有一部分是肌肉。`);
+  }
+  if (prev) {
+    const diff = st.netSum - prev.netSum;
+    out.push(`${prevLabel}净缺口 ${profitTxt(prev.netSum, 0)} kcal，本期${diff < 0 ? '多做出了 ' + Math.abs(diff) + ' kcal 的缺口' : '少了 ' + diff + ' kcal 的缺口'}。`);
+  }
+  return out;
+}
+
+function viewReview() {
+  const kind = state.reviewPeriod;
+  const r = periodRange(kind);
+  const days = sliceDays(r.start, r.end);
+  const prevDays = sliceDays(r.prevStart, r.prevEnd);
+  const st = rangeStats(days);
+  const pv = rangeStats(prevDays);
+
+  if (!st) {
+    return `<div class="empty">${r.label}还没有记录</div>`;
+  }
+
+  const lines = reviewSummary(st, r.label, pv, r.prevLabel);
+  const rangeTxt = `${ymd(r.start).slice(5).replace('-', '/')} — ${ymd(r.end).slice(5).replace('-', '/')}`;
+  const pctOk = Math.round((st.okDays / st.n) * 100);
+
+  const cmpRow = (name, a, b, unit, invert, dp) => {
+    const diff = a - b;
+    const good = invert ? diff < 0 : diff > 0;
+    const dec = dp == null ? 2 : dp;
+    return `
+      <div class="cmp-row">
+        <span class="cmp-name">${name}</span>
+        <span class="cmp-val">${a.toFixed(dec)}<em>${unit}</em></span>
+        <span class="cmp-diff ${diff === 0 ? 'flat' : good ? 'down' : 'up'}">${diff > 0 ? '+' : ''}${diff.toFixed(dec)}</span>
+      </div>`;
+  };
+
+  return `
+    <div class="rv-head">
+      <div class="pt-tabs">
+        <button class="pt ${kind === 'W' ? 'on' : ''}" data-review="W">周报</button>
+        <button class="pt ${kind === 'M' ? 'on' : ''}" data-review="M">月报</button>
+      </div>
+      <span class="rv-range">${rangeTxt}</span>
+    </div>
+
+    <div class="card rv-hero">
+      <div class="rv-hero-top">
+        <div>
+          <div class="rv-hero-label">${r.label}累计净缺口</div>
+          <div class="rv-hero-num ${profitCls(st.netSum)}">${profitTxt(st.netSum)}</div>
+          <div class="rv-hero-unit">kcal · ${st.n} 天 · 日均 ${profitTxt(st.avgNet)}</div>
+        </div>
+        <div class="rv-hero-right">
+          <div class="rv-kg ${signCls(st.theory)}">${signTxt(st.theory, 2)}<small>kg 理论</small></div>
+          <div class="rv-kg2 ${signCls(st.actual)}">${signTxt(st.actual, 2)}<small>kg 实际</small></div>
+        </div>
+      </div>
+      ${dayBarHTML(days)}
+      <div class="bar-legend"><span>每根 = 一天，红为净缺口（赚），绿为净盈余（亏）</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">达标日历</span>
+        <span class="card-note">${st.okDays}/${st.n} 天达标 · ${pctOk}%</span>
+      </div>
+      ${calendarHTML(days)}
+      <div class="cal-legend">
+        <span><i class="dot ok"></i>达标</span>
+        <span><i class="dot half"></i>有缺口但不够</span>
+        <span><i class="dot long"></i>做多（净盈余）</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">成绩单</span>
+        <span class="card-note">${r.label} vs ${r.prevLabel}</span>
+      </div>
+      ${cmpRow('净缺口', profitOf(st.netSum), pv ? profitOf(pv.netSum) : 0, ' kcal', false, 0)}
+      ${cmpRow('体重实际变化', st.actual, pv ? pv.actual : 0, ' kg', true)}
+      ${cmpRow('日均摄入', st.avgIntake, pv ? pv.avgIntake : 0, ' kcal', true)}
+      ${cmpRow('日均消耗', st.avgBurn, pv ? pv.avgBurn : 0, ' kcal', false)}
+      ${cmpRow('基差（水分）', st.basis, pv ? pv.basis : 0, ' kg', true)}
+      <div class="cmp-note">实际变化取 3 日均值平滑，避免单日水分噪音被当成趋势。差值列：红色代表比上一期更好。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">多空贡献</span>
+        <span class="card-note">${r.label}合计</span>
+      </div>
+      <div class="contrib">
+        <div class="contrib-row">
+          <span class="tag down">空</span>
+          <div>
+            <div class="contrib-t">最大空头日 ${st.strongest.date.slice(5).replace('-', '/')}</div>
+            <div class="contrib-d">净缺口 ${st.strongest.net} kcal，摄入 ${st.strongest.intake} / 消耗 ${st.strongest.burn}</div>
+          </div>
+        </div>
+        <div class="contrib-row">
+          <span class="tag up">多</span>
+          <div>
+            <div class="contrib-t">最大多头日 ${st.weakest.date.slice(5).replace('-', '/')}</div>
+            <div class="contrib-d">净盈余 +${st.weakest.net} kcal，摄入 ${st.weakest.intake} / 消耗 ${st.weakest.burn}</div>
+          </div>
+        </div>
+        <div class="contrib-row">
+          <span class="tag gold">量</span>
+          <div>
+            <div class="contrib-t">消耗最猛 ${st.burnMost.date.slice(5).replace('-', '/')}</div>
+            <div class="contrib-d">总消耗 ${st.burnMost.burn} kcal，其中运动 ${st.burnMost.burn - tdee()} kcal</div>
+          </div>
+        </div>
+        <div class="contrib-row">
+          <span class="tag up">吃</span>
+          <div>
+            <div class="contrib-t">摄入最多 ${st.eatMost.date.slice(5).replace('-', '/')}</div>
+            <div class="contrib-d">摄入 ${st.eatMost.intake} kcal，占本期总量 ${Math.round((st.eatMost.intake / st.intake) * 100)}%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">${r.label}小结</span></div>
+      <div class="summary">
+        ${lines.map((l) => `<p>${l}</p>`).join('')}
+      </div>
+    </div>
+
+    <div class="foot-note">
+      周报统计最近 7 个交易日，月报统计最近 30 个交易日，均含今日。用滚动窗口而非自然周月，是为了避免月初、周一打开时只有一两天数据。<br>
+      历史部分为演示数据，真实记录接入后口径不变。
+    </div>`;
+}
+
+/* ================= 我的 / 热量设置 ================= */
+
+const SEX_META = [
+  { k: 'male', t: '男' },
+  { k: 'female', t: '女' }
+];
+
+/* 测算结果区：单独渲染，输入时不重绘整页，避免打字打到一半丢焦点 */
+function profileResultHTML() {
+  const b = budgetInfo();
+  const w = state.weight, h = Number(profile.height) || 170, a = Number(profile.age) || 30;
+  const tMifflin = Math.round(bmrMifflin(w, h, a, profile.sex) * actFactor());
+  const tHarris = Math.round(bmrHarris(w, h, a, profile.sex) * actFactor());
+  const spread = Math.abs(tHarris - tMifflin);
+
+  const td = targetDeficit();
+  const weeklyKg = (td * 7) / KCAL_PER_KG;
+  const sur = intake() - b.kcal;
+
+  const rows = [
+    ['基础代谢 BMR', `${b.bmr} kcal`, '躺着不动也要烧掉的量'],
+    ['日常活动消耗', `${b.neat} kcal`, `BMR × ${actFactor()}，只含生活活动`],
+    ['今日运动', `${b.exercise} kcal`, b.exercise ? '来自卖出里的训练记录' : '今天还没记训练'],
+    ['今日预算', `${b.kcal} kcal`, b.mode === 'manual' ? '你手动指定' : '消耗 − 目标缺口'],
+    ['计划每周变化', `${signTxt(weeklyKg, 2)} kg`, td > 0 ? `约 ${(weeklyKg).toFixed(2)} kg 脂肪` : '在增重 / 维持']
+  ];
+
+  return `
+    ${rows.map(([k, v, d]) => `
+      <div class="set-row">
+        <div>
+          <div class="set-label">${k}</div>
+          <div class="set-sub">${d}</div>
+        </div>
+        <div style="text-align:right;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap">${v}</div>
+      </div>`).join('')}
+
+    <div class="vol-note" style="margin-top:10px;border-top:none;padding-top:0">
+      估算区间：Mifflin ${tMifflin} ~ Harris-Benedict ${tHarris} kcal，两者相差 ${spread} kcal。
+      这是公式本身的误差，不是算错 —— 真实值要靠连续两周的体重趋势反推校准。<br>
+      今日已吃 ${intake()} kcal，${sur > 0 ? `超预算 ${sur} kcal。` : `还剩 ${-sur} kcal。`}
+    </div>`;
+}
+
+/* 「我的」页：营养 + 设置 + 数据合成一页，顶部分段切换。
+   营养原来是独立页签，但一天真正会反复看的是"还缺什么"，
+   这和"我把预算设成多少"本来就是同一件事的两面，拆成两个页签反而要来回跳。
+   数据（备份/恢复）也放这里：它属于"我的东西"，但不该出现在主导航上 ——
+   天天看见的按钮会让人以为需要天天点。 */
+const PF_TABS = [
+  ['nutri', '营养'],
+  ['set', '热量设置'],
+  ['data', '数据']
+];
+
+function viewProfile() {
+  const tab = PF_TABS.some((t) => t[0] === state.pfTab) ? state.pfTab : 'nutri';
+  const seg = `<div class="seg">${PF_TABS.map(
+    ([k, t]) => `<button class="${tab === k ? 'on' : ''}" data-pftab="${k}">${t}</button>`
+  ).join('')}</div>`;
+  const body = tab === 'set' ? settingsPanel() : tab === 'data' ? dataPanel() : nutriPanel();
+  return `${seg}<div style="height:12px"></div>${body}`;
+}
+
+/* 「数据」分段：本机家底 + 备份 / 恢复 / 快照。
+   这一页平时不用看，只在换手机、丢了手机、或者手滑删错东西时才进来，
+   所以每个按钮下面都写清"会发生什么"，不靠用户猜。 */
+function dataPanel() {
+  const data = collectData();
+  const st = dataStats(data);
+  const meta = metaInfo();
+  const idx = snapIndex();
+  const bytes = payloadBytes(data);
+  const days = meta.lastBackupAt ? Math.floor((Date.now() - meta.lastBackupAt) / 86400000) : -1;
+  const stale = days < 0 || days > 7;
+  const rangeTxt = st.first ? `${st.first} ~ ${(st.last || st.first).slice(5)}` : '还没有记录';
+
+  const snaps = idx.length
+    ? idx.map((s) => {
+        const x = s.stats || {};
+        return `<div class="dp-snap">
+          <div>
+            <div class="t">${ago(s.at)} · ${esc(String(s.reason || '自动'))}</div>
+            <div class="d">${x.days || 0} 天 · ${x.items || 0} 笔 · 盘口 ${x.shops || 0}</div>
+          </div>
+          <button data-dp="snap" data-id="${esc(String(s.id))}">回滚</button>
+        </div>`;
+      }).join('')
+    : '<div class="dp-empty">还没有快照 · 记完第一笔会自动生成</div>';
+
+  return `
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">本机数据</span>
+        <span class="card-note dp-link" id="dp-persist" data-dp="persist">检测中…</span>
+      </div>
+      <div class="dp-grid">
+        <div class="dp-cell"><span>逐日记录</span><b>${st.days} 天<em>${st.items} 笔</em></b></div>
+        <div class="dp-cell"><span>数据跨度</span><b style="font-size:11.5px">${rangeTxt}</b></div>
+        <div class="dp-cell"><span>自选盘口</span><b>${st.shops}<em>个</em></b></div>
+        <div class="dp-cell"><span>我的食物</span><b>${st.foods}<em>条</em></b></div>
+        <div class="dp-cell"><span>占用空间</span><b>${fmtBytes(bytes)}</b></div>
+        <div class="dp-cell"><span>上次备份</span><b style="font-size:11.5px;color:${stale ? 'var(--gold)' : 'var(--text)'}">${meta.lastBackupAt ? ago(meta.lastBackupAt) : '从未备份'}</b></div>
+      </div>
+      <div class="vol-note" style="border-top:none;padding-top:10px">
+        这些数据只存在这台手机里，没有服务器、不联网上传。
+        浏览器在清缓存、或者长期不打开时可能把它回收，所以备份值得花一分钟做一次。
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">备份</span>
+        <span class="card-note">${meta.backupCount ? '已备份 ' + meta.backupCount + ' 次' : '还没备份过'}</span>
+      </div>
+      <div class="dp-acts">
+        <button class="dp-btn primary" data-dp="export">
+          <span><span class="dp-k">导出备份文件</span><small>存成 .json，放进手机「文件」或发给自己</small></span><i>›</i>
+        </button>
+        <button class="dp-btn" data-dp="copy">
+          <span><span class="dp-k">复制备份码</span><small>一段文本，粘到备忘录、微信收藏或邮件</small></span><i>›</i>
+        </button>
+        <button class="dp-btn" data-dp="share">
+          <span><span class="dp-k">系统分享</span><small>直接发微信 / 存云盘（手机支持时）</small></span><i>›</i>
+        </button>
+      </div>
+      ${stale ? `<div class="dp-warn">${days < 0 ? '还没有备份过' : days + ' 天没备份了'}。换手机、丢手机、清缓存都会丢数据，建议现在就做一次。</div>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">恢复</span><span class="card-note">会让你选覆盖还是合并</span></div>
+      <div class="dp-acts">
+        <button class="dp-btn" data-dp="import">
+          <span><span class="dp-k">从备份文件恢复</span><small>选一个之前导出的 .json</small></span><i>›</i>
+        </button>
+      </div>
+      <details class="dp-det" style="margin-top:8px">
+        <summary>粘贴备份码恢复</summary>
+        <textarea class="dp-code" id="dp-code" placeholder="把备份码整段粘贴到这里"></textarea>
+        <button class="dp-btn" data-dp="do-paste">
+          <span><span class="dp-k">用这段备份码恢复</span></span><i>›</i>
+        </button>
+      </details>
+      <div class="vol-note">
+        <b>覆盖</b>：换手机的标准做法，本机数据被备份整体替换。<br>
+        <b>合并</b>：已经在新手机上记了几天，想保住这几天的记录 —— 流水按日期和 id 去重取并集，设置保留本机的。
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">自动快照</span><span class="card-note">本机留 ${SNAP_MAX} 份</span></div>
+      ${snaps}
+      <div class="vol-note">
+        记完账、改完设置会自动存一份，手滑删掉也能退回去。
+        回滚前会先把当前状态再存一份，所以回滚本身也能反悔。
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="card-title">清空</span><span class="card-note">不可撤销</span></div>
+      <div class="dp-acts">
+        <button class="dp-btn danger" data-dp="wipe">
+          <span><span class="dp-k">清空本机全部数据</span><small>流水、盘口、食物库、设置</small></span><i>›</i>
+        </button>
+      </div>
+    </div>
+
+    <div class="foot-note">
+      备份是纯文本 JSON，用记事本也能打开核对里面有什么。<br>
+      换手机：旧机「导出备份」→ 传到新机 → 新机打开 App →「从备份文件恢复」→ 选覆盖。<br>
+      数据不上云是刻意的：体重和饮食记录只值得你自己看。
+    </div>`;
+}
+
+function settingsPanel() {
+  const b = budgetInfo();
+  const isAuto = profile.mode === 'auto';
+
+  const sexSeg = SEX_META.map(
+    (s) => `<button class="${profile.sex === s.k ? 'on' : ''}" data-sex="${s.k}">${s.t}</button>`
+  ).join('');
+
+  const modeSeg = `
+    <div class="seg">
+      <button class="${isAuto ? 'on' : ''}" data-mode="auto">自动测算</button>
+      <button class="${!isAuto ? 'on' : ''}" data-mode="manual">手动指定</button>
+    </div>`;
+
+  const actList = ACTIVITY_LEVELS.map((l) => `
+    <div class="act-opt ${Math.abs(profile.activity - l.v) < 0.001 ? 'on' : ''}" data-act="${l.v}">
+      <span class="act-k">${l.v}</span>
+      <div>
+        <div class="act-t">${l.t}</div>
+        <div class="act-d">${l.d}</div>
+      </div>
+    </div>`).join('');
+
+  const deficitChips = [
+    [-250, '慢', '约 0.23 kg/周'],
+    [-500, '标准', '约 0.45 kg/周'],
+    [-750, '快', '约 0.68 kg/周']
+  ]
+    .map(([v, t, d]) => `
+      <button class="chip ${Number(profile.deficit) === -v ? 'on' : ''}" data-def="${-v}">${t} ${v}</button>`)
+    .join('');
+
+  return `
+    <div class="edit-hint" style="margin-bottom:12px">改完立即生效，设置存在本机</div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">预算方式</span>
+        <span class="card-note">${isAuto ? '按身体数据算' : '自己定死'}</span>
+      </div>
+      ${modeSeg}
+      <div class="vol-note" style="margin-top:11px;border-top:none;padding-top:0">
+        ${isAuto
+          ? '自动：预算 = 基础代谢 + 日常活动 + 今日运动 − 目标缺口。练得多就多吃点，这是能长期坚持的模型。'
+          : '手动：预算固定，不随运动变化。适合严格控卡或备赛阶段，但容易在练得多的那天吃不够。'}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">身体数据</span>
+        <span class="card-note">用于算基础代谢</span>
+      </div>
+
+      <div class="set-row">
+        <div class="set-label">性别</div>
+        <div class="seg" style="width:120px">${sexSeg}</div>
+      </div>
+      <div class="set-row">
+        <div><div class="set-label">年龄</div><div class="set-sub">每长 10 岁，代谢约降 50 kcal</div></div>
+        <div class="unit-r">
+          <input class="set-input" type="number" inputmode="numeric" data-pf="age" value="${profile.age}" min="12" max="99"> 岁
+        </div>
+      </div>
+      <div class="set-row">
+        <div><div class="set-label">身高</div><div class="set-sub">身高越高，体表面积越大</div></div>
+        <div class="unit-r">
+          <input class="set-input" type="number" inputmode="numeric" data-pf="height" value="${profile.height}" min="120" max="230"> cm
+        </div>
+      </div>
+      <div class="set-row">
+        <div><div class="set-label">体重</div><div class="set-sub">就是行情里的报价，改它会重算整条曲线</div></div>
+        <div class="unit-r">
+          <input class="set-input" type="number" inputmode="decimal" step="0.1" data-pf="weight" value="${fmt(state.weight, 1)}" min="30" max="250"> kg
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">日常活动</span>
+        <span class="card-note">不含刻意训练</span>
+      </div>
+      <div class="act-grid">${actList}</div>
+      <div class="vol-note">
+        这一项只算通勤、走路、家务、上班这些「顺带」的活动量。
+        跑步、撸铁这类刻意训练请记到「卖出」里单独加回来 —— 否则两处重复计算，预算会虚高几百卡，
+        然后你会一边觉得没吃多、一边发现体重不动。
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">${isAuto ? '目标缺口' : '每日预算'}</span>
+        <span class="card-note">${isAuto ? '每天少吃多少' : '直接定 kcal'}</span>
+      </div>
+
+      ${isAuto
+        ? `
+        <div class="set-row">
+          <div class="set-label">每日缺口</div>
+          <div class="unit-r">
+            <input class="set-input" type="number" inputmode="numeric" step="50" data-pf="deficit" value="${profile.deficit}" min="0" max="1200"> kcal
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:10px">${deficitChips}</div>
+        <div class="vol-note">
+          缺口越大掉得越快，但也越难坚持、越容易掉肌肉。500 是大多数人的可执行区间。
+          ${Number(profile.deficit) > 800 ? '<br>⚠️ 超过 800 的缺口很难长期维持，通常两周内会出现暴食反弹。' : ''}
+          ${b.capped ? `<br>⚠️ 当前预算 ${b.raw} 已低于安全下限 ${b.floor}，系统抬到了 ${b.kcal}。` : ''}
+        </div>`
+        : `
+        <div class="set-row">
+          <div class="set-label">每日预算</div>
+          <div class="unit-r">
+            <input class="set-input" type="number" inputmode="numeric" step="50" data-pf="manual" value="${profile.manualKcal}" min="800" max="5000"> kcal
+          </div>
+        </div>
+        <div class="vol-note">
+          按你的身体数据，自动测算今天应是 <b style="color:var(--gold)">${b.raw} kcal</b>
+          （消耗 ${tdee() + b.exercise} − 缺口 ${profile.deficit}）。手动值与之相差 ${Math.abs(b.kcal - b.raw)} kcal。
+          ${b.kcal < b.bmr ? `<br>⚠️ ${b.kcal} 低于你的基础代谢 ${b.bmr}，长期这样吃会掉肌肉、代谢下降。` : ''}
+        </div>`
+      }
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">测算结果</span>
+        <span class="card-note">实时</span>
+      </div>
+      <div id="p-result">${profileResultHTML()}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">这些数字怎么来的</span>
+        <span class="card-note">全部本地计算</span>
+      </div>
+      <div class="vol-note" style="margin-top:0;border-top:none;padding-top:0">
+        <b>基础代谢</b>用 Mifflin-St Jeor 公式：男 10×体重 + 6.25×身高 − 5×年龄 + 5；女同式但末项为 −161。<br>
+        这是目前对普通人群误差最小的公式，个体误差约 ±10%。Harris-Benedict 是老公式，算出来通常偏高，一起给出是为了让你知道这是个区间而不是精确值。<br><br>
+        <b>没有走联网</b>，是有意的：基础代谢可以由这四个参数确定性算出来，联网查询只会引入不确定性，还要等网络、还可能被服务端限流。真正需要联网的是食物热量库，那部分之前试过，开放数据源不稳定，所以做成了本地库 + 个人自学习。
+      </div>
+    </div>
+
+    <div class="foot-note">
+      设置存在本机浏览器里，不上传。换设备或清缓存会丢，接后端账号后自动同步。
+    </div>`;
+}
+
+/* ================= 营养分段（挂在「我的」页里） ================= */
+const NUTRI_META = [
+  { key: 'p', label: '蛋白质', color: '#5B9BD5' },
+  { key: 'f', label: '脂肪', color: '#D29922' },
+  { key: 'c', label: '碳水', color: '#9B7EDE' },
+  { key: 'fb', label: '膳食纤维', color: '#3DD68C' }
+];
+
+function nutriPanel() {
+  const t = nutritionTargets();
+  const g = dayNutrients();
+  const ratio = t.kcal > 0 ? g.kcal / t.kcal : 0;
+  const C = 2 * Math.PI * 76;
+  const dash = Math.min(ratio, 1) * C;
+  const over = g.kcal > t.kcal;
+  const ringColor = over ? '#3DD68C' : '#E5484D';
+
+  const rows = NUTRI_META.map((m) => {
+    const val = g[m.key];
+    const target = t[m.key];
+    const p = target > 0 ? Math.min(100, (val / target) * 100) : 0;
+    const isOver = val > target * 1.05;
+    const isDone = val >= target * 0.9;
+    return { ...m, val, target, p, isOver, isDone };
+  });
+
+  const lacking = rows.filter((r) => r.val < r.target * 0.9);
+  const exceeded = rows.filter((r) => r.isOver);
+
+  return `
+    <div class="edit-hint" style="margin-bottom:2px">
+      预算 ${intakeBudget()} kcal · ${profile.mode === 'auto' ? '自动测算' : '手动指定'} · 达标线按目标的 90% 计
+    </div>
+
+    <div style="position:relative;width:176px;margin:10px auto 4px">
+      <svg viewBox="0 0 180 180" width="176" style="display:block">
+        <circle cx="90" cy="90" r="76" fill="none" stroke="#1C232B" stroke-width="11"/>
+        <circle cx="90" cy="90" r="76" fill="none" stroke="${ringColor}" stroke-width="11"
+          stroke-dasharray="${dash.toFixed(1)} ${C.toFixed(1)}" stroke-linecap="round"
+          transform="rotate(-90 90 90)"/>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div style="font-size:29px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1">${Math.round(g.kcal)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">/ ${t.kcal} kcal</div>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:11px;color:${over ? 'var(--up)' : 'var(--muted)'};margin-bottom:4px">
+      ${over ? `已超预算 ${Math.round(g.kcal - t.kcal)} kcal` : `预算还剩 ${Math.round(t.kcal - g.kcal)} kcal`}
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">营养素达标</span>
+        <span class="card-note">${lacking.length ? lacking.length + ' 项未达标' : '全部达标'}</span>
+      </div>
+      ${rows.map((r) => `
+        <div style="margin-bottom:13px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-bottom:5px">
+            <span>${r.label}</span>
+            <span style="font-variant-numeric:tabular-nums">
+              <b style="font-size:14px;color:${r.isOver ? 'var(--up)' : 'var(--text)'}">${r.val.toFixed(1)}</b>
+              <span style="color:var(--dim)">/ ${r.target} g</span>
+            </span>
+          </div>
+          <div class="bar" style="margin-top:0">
+            <i style="width:${r.p}%;background:${r.isOver ? '#3DD68C' : r.color}"></i>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">今日还缺什么</span>
+        <span class="card-note">按 90% 达标线</span>
+      </div>
+      ${lacking.length === 0 && exceeded.length === 0
+        ? '<div class="empty">四项都达标了，今天收工</div>'
+        : [
+            ...lacking.map((r) => `
+              <div class="log-row">
+                <span class="log-dot" style="background:${r.color}"></span>
+                <span class="log-name">${r.label}还差</span>
+                <span class="log-kcal" style="color:var(--muted)">${(r.target - r.val).toFixed(1)} g</span>
+              </div>`),
+            ...exceeded.map((r) => `
+              <div class="log-row">
+                <span class="log-dot" style="background:var(--up)"></span>
+                <span class="log-name">${r.label}已超</span>
+                <span class="log-kcal up">+${(r.val - r.target).toFixed(1)} g</span>
+              </div>`)
+          ].join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">每笔吃了什么</span>
+        <span class="card-note">按蛋白质排序</span>
+      </div>
+      ${state.logs.filter((l) => l.type === 'food').length === 0
+        ? '<div class="empty">今天还没有摄入记录</div>'
+        : state.logs
+            .filter((l) => l.type === 'food')
+            .slice()
+            .sort((a, b) => (b.p || 0) - (a.p || 0))
+            .map((l) => {
+              const tag = (v, cls, unit) =>
+                v > 0 ? `<span class="st ${cls}">${unit} ${v.toFixed(1)}</span>` : `<span class="st zero">${unit} 0</span>`;
+              return `
+              <div class="src-row">
+                <div class="src-name">${l.name} <span style="color:var(--dim);font-size:10px">${l.kcal} kcal</span></div>
+                <div class="src-tags">
+                  ${tag(Number(l.p) || 0, 'p', '蛋白')}
+                  ${tag(Number(l.f) || 0, 'f', '脂肪')}
+                  ${tag(Number(l.fb) || 0, 'fb', '纤维')}
+                </div>
+              </div>`;
+            })
+            .join('')}
+    </div>
+
+    <button class="add-bar" data-scan="1">拍包装背面的营养成分表</button>
+    <div class="foot-note">
+      只拍背面那张营养成分表，不拍正面包装。识别会读出「能量 / 蛋白质 / 脂肪 / 碳水 / 膳食纤维」并填进表单，核对后才保存。<br>
+      自动过滤 NRV% 那一列，遇到「每份」标注会换算成每 100g。识别不保证准确，核对这一步不能省。
+    </div>`;
+}
+
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+/* 交易日选择条：每个页面顶部都有，日期一改，全站跟着走 */
+function renderDatebar() {
+  const bar = document.getElementById('datebar');
+  if (!bar) return;
+  const today = todayStr();
+  const off = state.selDate !== today;
+  bar.className = 'datebar' + (off ? ' off' : '');
+  bar.innerHTML = `
+    <span class="db-l">交易日</span>
+    <input type="date" id="datePick" value="${state.selDate}" max="${today}" min="${HISTORY[0].date}">
+    ${off
+      ? '<button class="db-today" data-date="today">回到今天</button>'
+      : '<span class="db-flag">今天</span>'}`;
+}
+
+function render(keepScroll) {
+  const v = document.getElementById('view');
+  const sc = document.getElementById('main');
+  const keep = keepScroll && sc ? sc.scrollTop : 0;
+  const map = {
+    market: viewMarket, nearby: viewNearby, log: viewLog,
+    review: viewReview, profile: viewProfile
+  };
+  renderDatebar();
+  v.innerHTML = (map[state.view] || viewMarket)();
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.view === state.view));
+  const st = liveStreak();
+  document.getElementById('streak').textContent = `连续做空 ${st} 天`;
+  if (sc) sc.scrollTop = keep;
+  bindKline();
+  bindBoardAnim();
+  /* 数据页的「长期保存」状态要异步问浏览器，渲染完再回填 */
+  if (state.view === 'profile' && state.pfTab === 'data') probePersist();
+}
+
+document.body.addEventListener('click', (e) => {
+  /* 表单里的按钮/输入框自己处理，别被下面的委托截走 */
+  if (e.target.closest('#ex-save')) { saveEx(); return; }
+  if (e.target.closest('#ex-cancel')) { cancelEx(); return; }
+
+  const t = e.target.closest(
+    '[data-view],[data-pftab],[data-cat],[data-eat],[data-del],[data-edit],[data-add],[data-scan],[data-period],[data-review],[data-vol],[data-mode],[data-sex],[data-act],[data-def],[data-ex],[data-exmin],[data-exedit],[data-board],[data-date],[data-kzoom],[data-dp]'
+  );
+  if (!t) return;
+
+  /* 数据页的动作单独走一个入口，避免把备份/恢复的分支塞进这条主委托 */
+  if (t.dataset.dp) { handleDataAction(t.dataset.dp, t); return; }
+
+  /* 运动表单相关：全部走局部同步，不整页重绘（否则输入框和焦点会被冲掉） */
+  if (t.dataset.ex != null) {
+    pickEx(Number(t.dataset.ex));
+    return;
+  }
+  if (t.dataset.exmin != null) {
+    state.exDraft.mins = Number(t.dataset.exmin);
+    state.exDraft.kcal = null;          // 换时长就回到公式值
+    syncExDom();
+    return;
+  }
+  if (t.dataset.exedit != null) {
+    startEditEx(t.dataset.exedit);
+    return;
+  }
+
+  if (t.dataset.view) {
+    state.view = t.dataset.view;
+    /* 首页「改设置 ›」这类入口直接落到对应分段 */
+    if (t.dataset.pftab) state.pfTab = t.dataset.pftab;
+    render();
+    return;
+  }
+  if (t.dataset.pftab) {
+    state.pfTab = t.dataset.pftab;
+    render(true);
+    return;
+  }
+  if (t.dataset.date) {
+    switchDate(todayStr());
+    return;
+  }
+  if (t.dataset.kzoom != null) {
+    /* K 线密度：只换数据不换布局，滚动位置要留住 */
+    state.kZoom = Number(t.dataset.kzoom);
+    render(true);
+    return;
+  }
+  if (t.dataset.vol) {
+    state.volRange = Number(t.dataset.vol);
+    render(true);
+    return;
+  }
+  if (t.dataset.mode) {
+    profile.mode = t.dataset.mode;
+    saveProfile();
+    render(true);
+    toast(profile.mode === 'auto' ? '已切到自动测算' : '已切到手动指定');
+    return;
+  }
+  if (t.dataset.sex) {
+    profile.sex = t.dataset.sex;
+    saveProfile();
+    render(true);
+    return;
+  }
+  if (t.dataset.act) {
+    profile.activity = Number(t.dataset.act);
+    saveProfile();
+    render(true);
+    return;
+  }
+  if (t.dataset.def) {
+    profile.deficit = Number(t.dataset.def);
+    saveProfile();
+    render(true);
+    return;
+  }
+  if (t.dataset.period) {
+    /* 必须保持滚动位置：K 线卡高度固定，切周期只是换数据，
+       一 render() 就回顶会让用户以为整个页面被重置了（"跳动"就是这么来的） */
+    state.period = t.dataset.period;
+    render(true);
+    return;
+  }
+  if (t.dataset.board) {
+    state.boardTab = t.dataset.board;
+    /* 切的是第一屏的主角，回顶部比保持滚动位置更合理 —— 否则卡片高度一变，
+       用户视线会落在 K 线中间，完全看不到刚切过去的那张图 */
+    render();
+    return;
+  }
+  if (t.dataset.review) {
+    state.reviewPeriod = t.dataset.review;
+    render(true);
+    return;
+  }
+  if (t.dataset.cat) {
+    state.category = t.dataset.cat;
+    render(true);
+    return;
+  }
+  if (t.dataset.eat) {
+    const shop = shops.find(s => String(s.id) === t.dataset.eat);
+    if (!shop) return;
+    const kcal = caloriesOf(shop);
+    state.logs.push({
+      id: Date.now(),
+      type: 'food',
+      name: `${shop.shop} · ${shop.dish} ${shop.grams}g`,
+      kcal,
+      price: Number(shop.price) || 0
+    });
+    state.view = 'market';
+    saveLogs();
+    render();
+    toast(`已做空 ¥${shop.price} · 摄入 +${kcal} kcal`);
+    return;
+  }
+  if (t.dataset.edit) {
+    const shop = shops.find(s => String(s.id) === t.dataset.edit);
+    if (shop) openSheet(shop);
+    return;
+  }
+  if (t.dataset.add) {
+    openSheet(null);
+    return;
+  }
+  if (t.dataset.scan) {
+    openSheet(null);
+    $('btn-scan').click();
+    return;
+  }
+  if (t.dataset.del) {
+    state.logs = state.logs.filter(l => String(l.id) !== t.dataset.del);
+    /* 正在编辑的刚好被删掉，就退出编辑态，否则表单会指向一条不存在的记录 */
+    if (String(state.exEditId) === t.dataset.del) {
+      state.exEditId = null;
+      state.exDraft = { pick: -1, name: '', met: 5, mins: 30, kcal: null };
+    }
+    saveLogs();
+    render();
+  }
+});
+
+/* 运动表单的输入：只更新草稿和局部 DOM，不重绘整页 */
+document.body.addEventListener('input', (e) => {
+  const id = e.target.id;
+  const d = state.exDraft;
+  if (!d) return;
+
+  if (id === 'ex-name') {
+    d.name = e.target.value;
+    return;
+  }
+  if (id === 'ex-min') {
+    d.mins = Math.max(0, Number(e.target.value) || 0);
+    d.kcal = null;                       // 改了时长，就按公式重算
+  } else if (id === 'ex-met') {
+    d.met = Math.max(0, Number(e.target.value) || 0);
+    d.kcal = null;
+  } else if (id === 'ex-kcal') {
+    d.kcal = Math.max(0, Math.round(Number(e.target.value) || 0));   // 手改值：不再被公式覆盖
+  } else {
+    return;
+  }
+  syncExDom();
+});
+
+/* ================= 标的编辑抽屉 ================= */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+let editingId = null;
+
+function openSheet(shop) {
+  editingId = shop ? shop.id : null;
+  $('s-title').textContent = shop ? '编辑标的' : '添加标的';
+  $('f-food').value = shop ? (shop.food || shop.dish || '') : '';
+  $('f-grams').value = shop ? shop.grams : '';
+  $('f-per100').value = shop ? shop.per100 : '';
+  $('f-shop').value = shop ? shop.shop : '';
+  $('f-price').value = shop ? shop.price : '';
+  $('f-dist').value = shop ? (shop.dist || '') : '';
+  $('f-cat').value = shop ? shop.cat : '快餐';
+  ['p', 'f', 'c', 'fb'].forEach((k) => {
+    $('f-' + k).value = shop && Number(shop[k]) > 0 ? shop[k] : '';
+  });
+  $('nutri-box').open = shop ? Number(shop.p) > 0 : false;
+  $('scan-thumb').style.display = 'none';
+  $('scan-status').textContent = '';
+  $('btn-del').style.display = shop ? 'block' : 'none';
+  $('sug').innerHTML = '';
+  updatePreview();
+  $('mask').classList.add('on');
+  $('sheet').classList.add('on');
+}
+
+function closeSheet() {
+  $('mask').classList.remove('on');
+  $('sheet').classList.remove('on');
+  editingId = null;
+}
+
+function currentDraft() {
+  return {
+    food: $('f-food').value.trim(),
+    grams: Number($('f-grams').value) || 0,
+    per100: Number($('f-per100').value) || 0,
+    shop: $('f-shop').value.trim(),
+    price: Number($('f-price').value) || 0,
+    cat: $('f-cat').value,
+    dist: $('f-dist').value.trim(),
+    p: Number($('f-p').value) || 0,
+    f: Number($('f-f').value) || 0,
+    c: Number($('f-c').value) || 0,
+    fb: Number($('f-fb').value) || 0
+  };
+}
+
+function updatePreview() {
+  const d = currentDraft();
+  const kcal = caloriesOf({ per100: d.per100, grams: d.grams });
+  $('p-kcal').textContent = kcal.toLocaleString('zh-CN');
+  const base = CAT_BASE[d.cat] || 800;
+  if (d.price > 0 && kcal > 0) {
+    const eff = Math.round(((base - kcal) / d.price) * 10) / 10;
+    $('p-eff').textContent = `做空效率 ${eff > 0 ? '+' : ''}${eff} kcal/元`;
+    $('p-eff').style.color = eff >= 0 ? 'var(--down)' : 'var(--up)';
+  } else {
+    $('p-eff').textContent = '做空效率 —';
+    $('p-eff').style.color = 'var(--muted)';
+  }
+}
+
+function searchFood(q) {
+  const pool = [];
+  userFoods.forEach((f) => pool.push({ n: f.n, k: f.k, p: f.p, f: f.f, c: f.c, fb: f.fb, mine: true }));
+  FOOD_DB.forEach((f) => pool.push(f));
+  const seen = new Set();
+  return pool
+    .filter((f) => {
+      if (seen.has(f.n)) return false;
+      const hit = f.n.includes(q) || (f.alias || []).some((a) => a.includes(q));
+      if (hit) seen.add(f.n);
+      return hit;
+    })
+    .slice(0, 7);
+}
+
+function renderSug() {
+  const q = $('f-food').value.trim();
+  const box = $('sug');
+  if (!q) {
+    box.innerHTML = '';
+    return;
+  }
+  const hits = searchFood(q);
+  let html = hits
+    .map(
+      (f) =>
+        `<button data-food="${esc(f.n)}" data-k="${f.k}">${f.mine ? '<span style="color:var(--gold)">我</span> ' : ''}${esc(f.n)} ${f.k}</button>`
+    )
+    .join('');
+  html += `<button class="net" data-net="1">联网搜</button>`;
+  box.innerHTML = html;
+}
+
+/**
+ * 联网检索：Open Food Facts 开放接口，无需鉴权。
+ * 局限要说清楚——它主要覆盖带条码的预包装食品，中式家常菜命中率低，
+ * 所以只作为"本地库没有时的补充"，失败一律降级到手动填写。
+ */
+async function searchOnline(q) {
+  $('sug').innerHTML = '<button disabled>联网检索中…</button>';
+  const sources = [
+    (kw) =>
+      'https://cn.openfoodfacts.org/api/v2/search?search_terms=' +
+      encodeURIComponent(kw) +
+      '&page_size=8&fields=product_name,nutriments,brands',
+    (kw) =>
+      'https://world.openfoodfacts.org/cgi/search.pl?search_terms=' +
+      encodeURIComponent(kw) +
+      '&search_simple=1&action=process&json=1&page_size=8&fields=product_name,nutriments,brands'
+  ];
+
+  for (const build of sources) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 4000);
+      const res = await fetch(build(q), { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const list = (data.products || [])
+        .map((p) => {
+          const nm = (p.product_name || '').trim();
+          const n = p.nutriments || {};
+          let k = n['energy-kcal_100g'];
+          if (!k && n.energy_100g) k = n.energy_100g / 4.184;
+          return { name: nm, kcal: Math.round(k) };
+        })
+        .filter((x) => x.name && x.kcal > 0)
+        .slice(0, 6);
+      if (!list.length) continue;
+      $('sug').innerHTML = list
+        .map(
+          (p) =>
+            `<button data-online="${p.kcal}" data-oname="${esc(p.name)}">${esc(p.name.slice(0, 16))} ${p.kcal}</button>`
+        )
+        .join('');
+      toast(`找到 ${list.length} 条，点选填入每 100g 热量`);
+      return;
+    } catch (e) {
+      /* 换下一个数据源 */
+    }
+  }
+  toast('联网数据源暂时不可用，手动填一次就会记住');
+  renderSug();
+}
+
+function saveSheet() {
+  const d = currentDraft();
+  if (!d.shop) return toast('请填写门店名');
+  if (!d.grams || d.grams <= 0) return toast('请填写克重');
+  if (!d.per100 || d.per100 <= 0) return toast('请填写每 100g 热量');
+
+  if (editingId) {
+    const idx = shops.findIndex((s) => String(s.id) === String(editingId));
+    if (idx >= 0) shops[idx] = { ...shops[idx], ...d, dish: d.food || shops[idx].dish };
+  } else {
+    shops.push({ id: 'u' + Date.now(), ...d, dish: d.food || '未命名' });
+  }
+  learnFood(d.food, d.per100, { p: d.p, f: d.f, c: d.c, fb: d.fb });
+  saveShops();
+  const wasEdit = !!editingId;
+  closeSheet();
+  render();
+  toast(wasEdit ? '标的已更新' : '已加入盘口，热量已记住');
+}
+
+function deleteSheet() {
+  shops = shops.filter((s) => String(s.id) !== String(editingId));
+  saveShops();
+  closeSheet();
+  render();
+  toast('标的已移除');
+}
+
+$('f-food').addEventListener('input', () => {
+  renderSug();
+  updatePreview();
+});
+['f-grams', 'f-per100', 'f-price'].forEach((id) => $(id).addEventListener('input', updatePreview));
+$('f-cat').addEventListener('change', updatePreview);
+
+$('sug').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.food) {
+    const name = b.dataset.food;
+    const base = FOOD_DB.find((x) => x.n === name) || userFoods.find((x) => x.n === name) || {};
+    $('f-food').value = name;
+    if (base.k != null) $('f-per100').value = base.k;
+    ['p', 'f', 'c', 'fb'].forEach((k) => {
+      if (base[k] != null) $('f-' + k).value = base[k];
+    });
+    if (!$('f-shop').value) $('f-shop').value = name;
+    if (!$('f-grams').value) $('f-grams').value = 200;
+    if (base.p != null) $('nutri-box').open = true;
+    updatePreview();
+    $('sug').innerHTML = '';
+    return;
+  }
+  if (b.dataset.online) {
+    $('f-per100').value = b.dataset.online;
+    $('f-food').value = b.dataset.oname;
+    if (!$('f-grams').value) $('f-grams').value = 100;
+    updatePreview();
+    $('sug').innerHTML = '';
+    return;
+  }
+  if (b.dataset.net) searchOnline($('f-food').value.trim() || 'chicken');
+});
+
+/* ================= 拍照识别（OCR） ================= */
+
+/**
+ * 解析营养成分表文本。纯函数，可独立测试。
+ * 输入是 OCR 原始文本（含换行与错位空格），输出只包含"确实识别到"的字段。
+ *
+ * 只面向包装背面的营养成分表，针对这种版式做了三件事：
+ *   1. 剔除 NRV% —— 那一列是百分比，混进来会把"脂肪 10g"读成 20
+ *   2. 识别「每 100g」还是「每份」，按份换算回每 100g
+ *   3. 修正常见错字（蛋自质、脂防、碳水…）
+ */
+function parseNutritionText(raw) {
+  const flat = String(raw || '').replace(/\s+/g, '').replace(/[，,、]/g, '');
+  if (!flat) return {};
+
+  const fixed = flat
+    .replace(/蛋自质|蛋日质|蛋向质|蛋自|蛋白贡/g, '蛋白质')
+    .replace(/脂防|脂肮|脂肋/g, '脂肪')
+    .replace(/碳水化合物|碳化合物|炭水化合物/g, '碳水化合物')
+    .replace(/膳食纡维|膳食纤维|膳食维/g, '膳食纤维')
+    .replace(/能置|能童/g, '能量');
+
+  /* NRV% 整列剔除，避免百分比被当成含量 */
+  const clean = fixed.replace(/\d+(?:\.\d+)?%/g, '');
+  const noTrans = clean.replace(/反式脂肪(?:酸)?|饱和脂肪(?:酸)?/g, '');
+
+  /* 判断表格是按每 100g 还是按份标注 */
+  let scale = 1;
+  let basis = '每100g';
+  let servingG = 0;
+  if (!/每100(?:克|g|毫升|ml)/i.test(clean)) {
+    const m =
+      clean.match(/每份[（(]?(\d+(?:\.\d+)?)(?:克|g|毫升|ml)/) ||
+      clean.match(/每(?:份|包|袋|支|瓶|x)[^0-9]{0,4}(\d+(?:\.\d+)?)(?:克|g)/i);
+    if (m && +m[1] > 0 && Math.abs(+m[1] - 100) > 0.5) {
+      servingG = +m[1];
+      scale = 100 / servingG;
+      basis = `每份${servingG}g`;
+    }
+  }
+
+  const out = {};
+  const grab = (text, re) => {
+    const m = text.match(re);
+    return m ? parseFloat(m[1]) : null;
+  };
+  const put = (key, v, dp) => {
+    if (v === null) return;
+    const scaled = v * scale;
+    out[key] = dp === 0 ? Math.round(scaled) : Math.round(scaled * 10) / 10;
+  };
+
+  const e =
+    clean.match(/能量[^0-9]{0,6}(\d+(?:\.\d+)?)(千焦|kj|kcal|千卡|大卡)?/i) ||
+    clean.match(/热量[^0-9]{0,6}(\d+(?:\.\d+)?)(千焦|kj|kcal|千卡|大卡)?/i);
+  if (e) {
+    let v = parseFloat(e[1]);
+    const unit = (e[2] || '').toLowerCase();
+    if (unit === '千焦' || unit === 'kj') v = v / 4.184;
+    put('k', v, 0);
+  }
+
+  put('p', grab(clean, /蛋白质[^0-9]{0,6}(\d+(?:\.\d+)?)/), 1);
+  put('f', grab(noTrans, /脂肪[^0-9]{0,6}(\d+(?:\.\d+)?)/), 1);
+  put('c', grab(clean, /碳水化合物[^0-9]{0,6}(\d+(?:\.\d+)?)/) ?? grab(clean, /碳水[^0-9]{0,6}(\d+(?:\.\d+)?)/), 1);
+  put('fb', grab(clean, /膳食纤维[^0-9]{0,6}(\d+(?:\.\d+)?)/), 1);
+
+  if (out.k || out.p != null) {
+    out.basis = basis;
+    if (scale !== 1) out.scale = Math.round(scale * 100) / 100;
+    if (servingG) out.servingG = servingG;
+  }
+  return out;
+}
+
+let scanBusy = false;
+
+function setScanStatus(msg) {
+  const el = $('scan-status');
+  if (el) el.textContent = msg;
+}
+
+function loadTesseract() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    s.async = true;
+    s.onload = () => (window.Tesseract ? resolve(window.Tesseract) : reject(new Error('引擎未就绪')));
+    s.onerror = () => reject(new Error('引擎加载失败'));
+    document.head.appendChild(s);
+  });
+}
+
+/* 成分表的字号很小，全局阈值会把灰底上的浅字整片吃掉，
+   所以用局部均值（积分图加速）做自适应二值化，并把小图放大到 1400px 再识别。 */
+function enhanceImage(file, targetW = 1400) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(2.2, Math.max(0.4, targetW / img.width));
+      const w = Math.max(2, Math.round(img.width * scale));
+      const h = Math.max(2, Math.round(img.height * scale));
+      const cv = document.createElement('canvas');
+      cv.width = w;
+      cv.height = h;
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const data = ctx.getImageData(0, 0, w, h);
+      const px = data.data;
+      const gray = new Uint8ClampedArray(w * h);
+      for (let i = 0, p = 0; i < px.length; i += 4, p++) {
+        gray[p] = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      }
+
+      /* 积分图：O(1) 求任意矩形内的灰度均值 */
+      const iw = w + 1;
+      const integral = new Float32Array(iw * (h + 1));
+      for (let y = 0; y < h; y++) {
+        let rowSum = 0;
+        for (let x = 0; x < w; x++) {
+          rowSum += gray[y * w + x];
+          integral[(y + 1) * iw + (x + 1)] = integral[y * iw + (x + 1)] + rowSum;
+        }
+      }
+
+      const r = Math.max(6, Math.round(w / 32));
+      for (let y = 0; y < h; y++) {
+        const y0 = Math.max(0, y - r);
+        const y1 = Math.min(h - 1, y + r);
+        for (let x = 0; x < w; x++) {
+          const x0 = Math.max(0, x - r);
+          const x1 = Math.min(w - 1, x + r);
+          const sum =
+            integral[(y1 + 1) * iw + (x1 + 1)] -
+            integral[y0 * iw + (x1 + 1)] -
+            integral[(y1 + 1) * iw + x0] +
+            integral[y0 * iw + x0];
+          const cnt = (y1 - y0 + 1) * (x1 - x0 + 1);
+          const mean = sum / cnt;
+          /* 低于局部均值一档即判为墨迹；230 以上一律视作纸面，避免大片反光被拉黑 */
+          const v = gray[y * w + x] < mean * 0.9 && mean < 232 ? 0 : 255;
+          const pi = (y * w + x) * 4;
+          px[pi] = px[pi + 1] = px[pi + 2] = v;
+          px[pi + 3] = 255;
+        }
+      }
+      ctx.putImageData(data, 0, 0);
+      cv.toBlob((b) => {
+        URL.revokeObjectURL(url);
+        b ? resolve(b) : reject(new Error('图片处理失败'));
+      }, 'image/png');
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('图片读取失败'));
+    };
+    img.src = url;
+  });
+}
+
+async function handleScan(file) {
+  if (scanBusy) return;
+  scanBusy = true;
+  const thumb = $('scan-thumb');
+  thumb.src = URL.createObjectURL(file);
+  thumb.style.display = 'block';
+
+  try {
+    setScanStatus('加载识别引擎…');
+    const T = await loadTesseract();
+    setScanStatus('加载中文模型（首次约 25 秒）…');
+    const worker = await T.createWorker('chi_sim', 1, {
+      logger: (m) => {
+        if (m.status === 'recognizing text') setScanStatus('识别成分表 ' + Math.round((m.progress || 0) * 100) + '%');
+      }
+    });
+    setScanStatus('增强对比度…');
+    let target = file;
+    try {
+      target = await enhanceImage(file);
+    } catch (e) {
+      target = file;
+    }
+    const { data } = await worker.recognize(target);
+    await worker.terminate();
+    applyScan(parseNutritionText(data.text));
+  } catch (e) {
+    setScanStatus('识别不可用，请手动填写每 100g 热量');
+    toast('识别失败：' + (e.message || '未知错误'));
+  } finally {
+    scanBusy = false;
+  }
+}
+
+function applyScan(parsed) {
+  const hit = [];
+  if (parsed.k) {
+    $('f-per100').value = parsed.k;
+    hit.push('能量');
+  }
+  if (parsed.p != null) {
+    $('f-p').value = parsed.p;
+    hit.push('蛋白质');
+  }
+  if (parsed.f != null) {
+    $('f-f').value = parsed.f;
+    hit.push('脂肪');
+  }
+  if (parsed.c != null) {
+    $('f-c').value = parsed.c;
+    hit.push('碳水');
+  }
+  if (parsed.fb != null) {
+    $('f-fb').value = parsed.fb;
+    hit.push('纤维');
+  }
+
+  if (!hit.length) {
+    setScanStatus('这张图没读出营养数据。确认拍的是背面那张表格，光线均匀、别反光，或直接手动填写。');
+    toast('没识别到成分表，可重拍或手填');
+    return;
+  }
+
+  /* 按份标注的表已经换算成每 100g，克重默认填份量更贴近一包的实际摄入 */
+  if (!$('f-grams').value) $('f-grams').value = parsed.servingG || 100;
+  $('nutri-box').open = true;
+  updatePreview();
+
+  const basisTxt = parsed.scale ? `已从${parsed.basis}换算为每 100g` : '按每 100g';
+  setScanStatus(`识别到 ${hit.join(' / ')}，${basisTxt}。数值请核对后再保存。`);
+  toast(`识别到 ${hit.length} 项，务必核对`);
+}
+
+$('btn-scan').addEventListener('click', () => $('file-cam').click());
+$('file-cam').addEventListener('change', (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (f) handleScan(f);
+  e.target.value = '';
+});
+
+$('mask').addEventListener('click', closeSheet);
+$('btn-save').addEventListener('click', saveSheet);
+$('btn-del').addEventListener('click', deleteSheet);
+
+/* ---------- 设置页输入：只刷新结果区，不重绘整页 ----------
+   如果每次按键都 render()，输入框会被替换掉、焦点丢失，打"175"只能打进一个"1"。 */
+const PF_FIELD = { age: 'age', height: 'height', deficit: 'deficit', manual: 'manualKcal' };
+
+function applyProfileInput(el) {
+  const v = Number(el.value);
+  if (!isFinite(v) || el.value === '') return;
+  const key = el.dataset.pf;
+
+  if (key === 'weight') {
+    const w = Math.min(250, Math.max(30, v));
+    if (Math.abs(w - state.weight) < 0.001) return;
+    state.weight = w;
+    rebuildHistory();            // 体重变了，整条历史曲线要跟着重算
+  } else if (PF_FIELD[key]) {
+    profile[PF_FIELD[key]] = v;
+  }
+  saveProfile();
+
+  const box = document.getElementById('p-result');
+  if (box) box.innerHTML = profileResultHTML();
+}
+
+document.body.addEventListener('input', (e) => {
+  if (e.target && e.target.dataset && e.target.dataset.pf) applyProfileInput(e.target);
+});
+
+/* 失焦时归一化（越界值夹回合法区间），整页重绘一次，保持滚动位置不跳 */
+document.body.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el || !el.dataset || !el.dataset.pf) return;
+  const key = el.dataset.pf;
+  const lim = { age: [12, 99], height: [120, 230], weight: [30, 250], deficit: [0, 1200], manual: [800, 5000] }[key];
+  if (lim) {
+    const v = Math.min(lim[1], Math.max(lim[0], Number(el.value) || lim[0]));
+    if (key === 'weight') { state.weight = v; rebuildHistory(); }
+    else if (PF_FIELD[key]) profile[PF_FIELD[key]] = v;
+    el.value = key === 'weight' ? v.toFixed(1) : String(v);
+  }
+  saveProfile();
+  if (state.view === 'profile') render(true);
+});
+
+/* 交易日切换：原生日期控件，改完立刻生效 */
+document.body.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'datePick') switchDate(e.target.value);
+});
+
+/* 支持 #market / #review 这类深链，方便直接分享到某个页签。
+   #nutri 保留兼容：营养已并入「我的」，落到该页的营养分段。 */
+if (typeof location !== 'undefined' && location.hash) {
+  let h = location.hash.replace('#', '');
+  if (h === 'nutri') {
+    state.view = 'profile';
+    state.pfTab = 'nutri';
+  } else if (h === 'set') {
+    state.view = 'profile';
+    state.pfTab = 'set';
+  } else if (h === 'data') {
+    state.view = 'profile';
+    state.pfTab = 'data';
+  } else if (['market', 'nearby', 'log', 'review', 'profile'].includes(h)) {
+    state.view = h;
+  }
+}
+
+/* 启动落在"今天"；这一天存过流水就用存过的，没有则用内置演示数据 */
+state.selDate = todayStr();
+DAY_STORE = loadDayStore();
+if (DAY_STORE[state.selDate] && DAY_STORE[state.selDate].length) {
+  state.logs = DAY_STORE[state.selDate].slice();
+}
+
+render();
+
+/* 注册 Service Worker：只在 http(s) 下有效（file:// 打开时静默跳过，不影响使用）。
+   HTML 走网络优先，所以更新页面后刷一下就是新的，不会被旧缓存锁死。 */
+if (typeof navigator !== 'undefined' && navigator.serviceWorker && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* 没有 sw.js 就当没有 */ });
+  });
+}
+</script>
+</body>
+</html>
